@@ -19,6 +19,12 @@ FORMATTERS = {
 
 PERIOD_TO_GRANULARITY = {"month": "month", "quarter": "quarter", "year": "year", "custom": "month"}
 
+# Cost postings never carry a customer_id (0% tagged, not partial) — cost is
+# only measurable whole-company or by time period/cost bucket, never broken
+# down by a customer-attribute dimension. See README's "Cost attribution".
+CUSTOMER_ATTR_DIMS = {"company", "location", "segment", "nace_name"}
+BREAKDOWN_SAFE_MEASURES = {"revenue", "order_count"}
+
 
 def render(lang: str, theme: str) -> None:
     min_date, max_date = get_date_bounds()
@@ -94,8 +100,16 @@ def render(lang: str, theme: str) -> None:
     if group_by:
         st.write("")
         st.markdown(f'<div class="section-label">{t("breakdown", lang)}</div>', unsafe_allow_html=True)
-        bcols = st.columns(min(2, len(selected_measures)) or 1)
-        for i, m in enumerate(selected_measures):
+
+        restricted = any(d in CUSTOMER_ATTR_DIMS for d in group_by)
+        breakdown_measures = [
+            m for m in selected_measures if not restricted or m in BREAKDOWN_SAFE_MEASURES
+        ]
+        if restricted and len(breakdown_measures) < len(selected_measures):
+            st.caption(f"ℹ️ {t('cost_by_dimension_note', lang)}")
+
+        bcols = st.columns(min(2, len(breakdown_measures)) or 1)
+        for i, m in enumerate(breakdown_measures):
             df = get_measure(m, group_by=group_by, date_range=date_range_param, filters=filters)
             if df.empty:
                 continue
