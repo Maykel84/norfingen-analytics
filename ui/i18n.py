@@ -71,6 +71,16 @@ TRANSLATIONS = {
     "back_to_list": {"en": "Back", "pl": "Wróć", "no": "Tilbake"},
     "lifetime_revenue": {"en": "Lifetime revenue", "pl": "Przychód całkowity", "no": "Total inntekt"},
     "clear_compare": {"en": "Clear", "pl": "Wyczyść", "no": "Tøm"},
+    "no_cost_note": {
+        "en": "Cost data in this system isn't recorded per client — only company-wide totals are available (see Overview).",
+        "pl": "Dane o kosztach w tym systemie nie są rejestrowane per klient — dostępne są tylko sumy dla całej firmy (patrz Przegląd).",
+        "no": "Kostnadsdata i dette systemet registreres ikke per klient — kun selskapsomfattende totaler er tilgjengelig (se Oversikt).",
+    },
+    "cost_by_dimension_note": {
+        "en": "Cost/Profit/Margin aren't available broken down by company, location, segment, or industry — cost isn't tracked at that level.",
+        "pl": "Koszt/Zysk/Marża nie są dostępne w podziale na firmę, lokalizację, segment lub branżę — koszty nie są śledzone na tym poziomie.",
+        "no": "Kostnad/Fortjeneste/Margin er ikke tilgjengelig fordelt på selskap, sted, segment eller bransje — kostnad spores ikke på det nivået.",
+    },
 }
 
 

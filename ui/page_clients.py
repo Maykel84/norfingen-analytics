@@ -6,7 +6,7 @@ import streamlit as st
 from data.geocoding import CITY_COORDINATES
 from semantic.metrics import get_client_history, get_client_summary, get_date_bounds
 from ui.charts import company_scatter_map, grouped_bar_compare, line_over_time
-from ui.components import format_currency, format_int, format_pct, kpi_tile, segmented_control
+from ui.components import format_currency, format_int, kpi_tile, segmented_control
 from ui.i18n import t
 
 MAX_COMPARE = 3
@@ -31,6 +31,7 @@ def _toggle_compare(name: str, checked: bool):
 
 
 def _render_list(lang: str, theme: str, summary: pd.DataFrame):
+    st.caption(f"ℹ️ {t('no_cost_note', lang)}")
     col_search, col_sector, col_size = st.columns([3, 2, 2])
     with col_search:
         query = st.text_input(t("search_clients", lang), key="client_search")
@@ -113,16 +114,11 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame):
     st.markdown(f"### {name}")
     st.caption(f"{row['sector']} · {row['size_band']} · {row.get('city', '')}")
 
-    cols = st.columns(5)
+    st.caption(f"ℹ️ {t('no_cost_note', lang)}")
+    cols = st.columns(3)
     with cols[0]:
         kpi_tile(t("lifetime_revenue", lang), format_currency(row["revenue"]), theme)
     with cols[1]:
-        kpi_tile(t("cost", lang), format_currency(row["cost"]), theme)
-    with cols[2]:
-        kpi_tile(t("profit", lang), format_currency(row["profit"]), theme)
-    with cols[3]:
-        kpi_tile(t("margin_pct", lang), format_pct(row["margin_pct"]), theme)
-    with cols[4]:
         kpi_tile(t("order_count", lang), format_int(row["order_count"]), theme)
 
     st.write("")
@@ -134,10 +130,12 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame):
             point_df = pd.DataFrame(
                 {
                     "name": [name], "city": [row.get("city")], "lat": [lat], "lon": [lon],
-                    "revenue": [max(row["revenue"], 1)], "margin_pct": [row["margin_pct"]],
+                    "revenue": [max(row["revenue"], 1)], "order_count": [row["order_count"]],
                 }
             )
-            fig = company_scatter_map(point_df, "revenue", "revenue", "margin_pct", t("margin_pct", lang), "", theme)
+            fig = company_scatter_map(
+                point_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme
+            )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     with history_col:
@@ -153,11 +151,9 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame):
         )
         history_df = get_client_history(name, st.session_state.client_period_type)
         if not history_df.empty and "period" in history_df.columns:
-            melted = history_df.melt(
-                id_vars=["period"], value_vars=["revenue", "cost", "profit"], var_name="measure", value_name="value"
+            fig = line_over_time(
+                history_df.sort_values("period"), "period", "revenue", None, t("revenue", lang), theme
             )
-            melted["measure"] = melted["measure"].map(lambda m: t(m, lang))
-            fig = line_over_time(melted, "period", "value", "measure", "", theme)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
@@ -169,20 +165,21 @@ def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
 
     subset = summary[summary["name"].isin(names)]
     st.markdown(f"### {t('compare_selected', lang)}")
+    st.caption(f"ℹ️ {t('no_cost_note', lang)}")
 
-    table = subset[["name", "sector", "size_band", "revenue", "cost", "profit", "margin_pct", "order_count"]].copy()
+    table = subset[["name", "sector", "size_band", "revenue", "order_count"]].copy()
     table.columns = [
-        t("company", lang), t("sector", lang), t("size_band", lang), t("revenue", lang), t("cost", lang),
-        t("profit", lang), t("margin_pct", lang), t("order_count", lang),
+        t("company", lang), t("sector", lang), t("size_band", lang), t("revenue", lang), t("order_count", lang),
     ]
     st.dataframe(table, use_container_width=True, hide_index=True)
 
-    melted = subset.melt(
-        id_vars=["name"], value_vars=["revenue", "cost", "profit"], var_name="measure", value_name="value"
-    )
-    melted["measure"] = melted["measure"].map(lambda m: t(m, lang))
-    fig = grouped_bar_compare(melted, "measure", "value", "name", "", theme)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    chart_col1, chart_col2 = st.columns(2)
+    with chart_col1:
+        fig_rev = grouped_bar_compare(subset, "name", "revenue", "name", t("revenue", lang), theme)
+        st.plotly_chart(fig_rev, use_container_width=True, config={"displayModeBar": False})
+    with chart_col2:
+        fig_orders = grouped_bar_compare(subset, "name", "order_count", "name", t("order_count", lang), theme)
+        st.plotly_chart(fig_orders, use_container_width=True, config={"displayModeBar": False})
 
     map_rows = []
     for _, r in subset.iterrows():
@@ -190,12 +187,12 @@ def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
         if lat is not None:
             map_rows.append(
                 {"name": r["name"], "city": r["city"], "lat": lat, "lon": lon,
-                 "revenue": max(r["revenue"], 1), "margin_pct": r["margin_pct"]}
+                 "revenue": max(r["revenue"], 1), "order_count": r["order_count"]}
             )
     if map_rows:
         map_df = pd.DataFrame(map_rows)
         fig_map = company_scatter_map(
-            map_df, "revenue", "revenue", "margin_pct", t("margin_pct", lang), "", theme
+            map_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme
         )
         st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
 
