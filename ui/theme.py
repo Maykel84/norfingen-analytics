@@ -78,19 +78,27 @@ def inject_global_css(theme: str) -> str:
 
     section[data-testid="stSidebar"] {{ display: none; }}
 
+    /* padding-top clears Streamlit's own fixed top toolbar (the Deploy /
+       Share / GitHub icon bar) — on Streamlit Community Cloud this bar is
+       taller/wider than in local dev (adds Share/Star/Fork/GitHub icons),
+       so this needs more headroom than a bare local run suggests. Verified
+       against the deployed app, not just `streamlit run` locally. */
     div.block-container {{
-        padding-top: 1rem;
+        padding-top: 4.5rem;
         max-width: 1220px;
     }}
 
     /* Nav shell — present at the top of every page. (True scroll-pinned
        sticky was tried but collided with Streamlit's own fixed header bar;
-       dropped in favor of a reliably-rendered top shell.) */
+       dropped in favor of a reliably-rendered top shell.) A small extra
+       top margin on the shell itself is a second line of defense in case
+       the native toolbar's height shifts between Streamlit versions. */
     .st-key-app_nav {{
         background: {t['surface']};
         border-bottom: 1px solid {t['border']};
         border-radius: 10px;
         padding: 10px 20px 14px 20px;
+        margin-top: 0.5rem;
         margin-bottom: 20px;
     }}
     .st-key-app_nav div[data-testid="stButton"] > button {{
@@ -180,6 +188,19 @@ def inject_global_css(theme: str) -> str:
     [class*="st-key-pill_"] div[data-testid="stButton"] > button:hover {{
         border-color: {t['navy']} !important;
         color: {t['navy']} !important;
+    }}
+
+    /* Year dropdown — restyled BaseWeb select to match the app's controls
+       rather than Streamlit's default select chrome. */
+    .st-key-select_years div[data-baseweb="select"] > div {{
+        border-radius: 8px !important;
+        border-color: {t['border']} !important;
+        background: {t['surface']} !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+    }}
+    .st-key-select_years div[data-baseweb="select"] > div:hover {{
+        border-color: {t['navy']} !important;
     }}
 
     /* Client cards */
