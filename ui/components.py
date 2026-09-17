@@ -57,12 +57,18 @@ def kpi_tile(label: str, value: str, theme: str, delta: str | None = None, spark
 
 
 def nav_bar(active: str, lang: str, theme: str, t_func) -> tuple[str, str, str]:
-    """Renders the persistent top nav shell. Returns (new_active, new_lang, new_theme)."""
+    """Renders the persistent top nav shell. Returns (new_active, new_lang, new_theme).
+
+    Language and theme are icon/pill buttons rather than dropdowns — one
+    click each, and the active language reuses the same primary/secondary
+    button styling that marks the active nav tab (see ui/theme.py's
+    .st-key-app_nav rules), so this pinned app chrome reads as one system.
+    """
     from ui.i18n import LANGUAGES
 
     new_active, new_lang, new_theme = active, lang, theme
     with st.container(key="app_nav"):
-        left, mid, right = st.columns([2, 5, 3])
+        left, mid, right = st.columns([2, 4, 4])
         with left:
             st.markdown(f'<div class="brand">◆ {t_func("app_title", lang)}</div>', unsafe_allow_html=True)
 
@@ -80,37 +86,34 @@ def nav_bar(active: str, lang: str, theme: str, t_func) -> tuple[str, str, str]:
                         new_active = key
 
         with right:
-            c1, c2 = st.columns(2)
-            with c1:
-                new_lang = st.selectbox(
-                    "lang", options=list(LANGUAGES.keys()), format_func=lambda k: k.upper(),
-                    index=list(LANGUAGES.keys()).index(lang), key="lang_select", label_visibility="collapsed",
-                )
-            with c2:
-                new_theme = st.selectbox(
-                    "theme", options=["light", "dark"], format_func=lambda k: "☀" if k == "light" else "☾",
-                    index=["light", "dark"].index(theme), key="theme_select", label_visibility="collapsed",
-                )
+            lang_cols = st.columns(len(LANGUAGES) + 1)
+            for col, code in zip(lang_cols, LANGUAGES.keys()):
+                with col:
+                    btn_type = "primary" if code == lang else "secondary"
+                    if st.button(code.upper(), key=f"lang_{code}", use_container_width=True, type=btn_type):
+                        new_lang = code
+            with lang_cols[-1]:
+                icon = "☀" if theme == "light" else "☾"
+                if st.button(icon, key="theme_toggle", use_container_width=True, type="secondary"):
+                    new_theme = "dark" if theme == "light" else "light"
     return new_active, new_lang, new_theme
 
 
 def year_switcher(years: list[int], selected: str | int, label_all: str) -> str | int:
-    """Row of pill buttons: one per year + 'All years'. Returns the selection.
+    """Single dropdown: 'All years' + one entry per year. Returns the selection.
 
-    Wrapped in a container keyed "pill_years" so the pill styling in
-    theme.py (rounded, bordered) only applies here and to segmented_control
-    — never to the nav bar's own buttons (see ui/theme.py's pill-scoping note).
+    Wrapped in a "select_years" container so ui/theme.py can restyle the
+    dropdown's chrome (border/radius/font) to match the app rather than
+    Streamlit's default BaseWeb select look.
     """
     options = ["all"] + list(years)
-    result = selected
-    with st.container(key="pill_years"):
-        cols = st.columns(len(options))
-        for col, opt in zip(cols, options):
-            with col:
-                label = f"📅 {label_all}" if opt == "all" else f"🗓 {opt}"
-                btn_type = "primary" if opt == selected else "secondary"
-                if st.button(label, key=f"year_{opt}", use_container_width=True, type=btn_type):
-                    result = opt
+    labels = {"all": f"📅 {label_all}", **{y: f"🗓 {y}" for y in years}}
+    index = options.index(selected) if selected in options else 0
+    with st.container(key="select_years"):
+        result = st.selectbox(
+            "year", options=options, index=index, format_func=lambda o: labels.get(o, str(o)),
+            key="overview_year_select", label_visibility="collapsed",
+        )
     return result
 
 
