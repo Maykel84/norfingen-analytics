@@ -338,25 +338,21 @@ def get_city_density() -> pd.DataFrame:
 def get_client_summary(filters: dict | None = None) -> pd.DataFrame:
     """One row per customer (all 50, even those with zero orders): lifetime
     revenue/order_count, sector (=nace_name), and a derived size band
-    (revenue tercile across all customers). Cost/profit here follow the same
-    customer-tagged-postings caveat as get_measure(company_scoped=True) —
-    partial, not the full P&L.
+    (revenue tercile across all customers).
+
+    Deliberately excludes cost/profit/margin: cost postings (account range
+    4000-7999) never carry a customer_id in this dataset — 0% tagged, not a
+    partial-tagging gap — so cost cannot be attributed to an individual
+    client by any method. Returning 0 kr here would misleadingly read as
+    "this client costs nothing" rather than "not tracked at this level".
+    See README's "Cost attribution" section.
     """
     companies = get_companies()
     revenue_df = _fetch_revenue(["company"], None, None, filters)
-    cost_df = _fetch_cost(["company"], None, None, filters, True)
 
     merged = companies.merge(revenue_df, left_on="name", right_on="company", how="left")
-    merged = merged.merge(
-        cost_df.groupby("company", as_index=False)["cost"].sum(), on="company", how="left"
-    )
     merged["revenue"] = merged["revenue"].fillna(0.0)
-    merged["cost"] = merged["cost"].fillna(0.0)
     merged["order_count"] = merged["order_count"].fillna(0).astype(int)
-    merged["profit"] = merged["revenue"] - merged["cost"]
-    merged["margin_pct"] = merged.apply(
-        lambda r: (r["profit"] / r["revenue"] * 100) if r["revenue"] else 0.0, axis=1
-    )
 
     if not merged.empty:
         try:
@@ -375,6 +371,7 @@ def get_client_summary(filters: dict | None = None) -> pd.DataFrame:
 def get_client_history(
     company_name: str, granularity: str | None, date_range: tuple | None = None
 ) -> pd.DataFrame:
-    """Revenue/cost/profit history for a single client, scoped by period."""
+    """Revenue history for a single client, scoped by period. Cost/profit are
+    intentionally excluded — see get_client_summary()'s docstring."""
     filters = {"company": [company_name]}
-    return get_measure("profit", group_by=[], date_range=date_range, granularity=granularity, filters=filters)
+    return _fetch_revenue([], granularity, date_range, filters)
