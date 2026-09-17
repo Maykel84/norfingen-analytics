@@ -1,4 +1,4 @@
-# Operational Intelligence Dashboard
+# NorFinGen Analytics
 
 Self-service analytics dashboard over a Supabase Postgres instance, built with
 Streamlit. Users pick measures, dimensions, granularity, and date range rather

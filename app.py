@@ -6,7 +6,7 @@ from ui.components import nav_bar
 from ui.i18n import t
 from ui.theme import inject_global_css
 
-st.set_page_config(page_title="Operational Intelligence", layout="wide", page_icon="◆")
+st.set_page_config(page_title="NORFINGEN ANALYTICS", layout="wide", page_icon="◆")
 
 if "lang" not in st.session_state:
     st.session_state.lang = "en"

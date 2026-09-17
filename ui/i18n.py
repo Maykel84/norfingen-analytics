@@ -4,9 +4,9 @@ LANGUAGES = {"en": "English", "pl": "Polski", "no": "Norsk"}
 
 TRANSLATIONS = {
     "app_title": {
-        "en": "Operational Intelligence",
-        "pl": "Analityka operacyjna",
-        "no": "Operasjonell innsikt",
+        "en": "NORFINGEN ANALYTICS",
+        "pl": "NORFINGEN ANALYTICS",
+        "no": "NORFINGEN ANALYTICS",
     },
     "measures": {"en": "Measures", "pl": "Miary", "no": "Målinger"},
     "group_by": {"en": "Group by", "pl": "Grupuj wg", "no": "Grupper etter"},
