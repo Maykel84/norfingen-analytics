@@ -51,24 +51,29 @@ def render(lang: str, theme: str) -> None:
         kpi_tile(t("client_count", lang), f"{totals['company_count']:,}", theme)
 
     st.write("")
-    st.markdown(f'<div class="section-label">{t("history", lang)}</div>', unsafe_allow_html=True)
-    history_df = get_multi_year_trend()
-    if not history_df.empty:
-        melted = history_df.melt(
-            id_vars=["period"], value_vars=["revenue", "cost", "profit"], var_name="measure", value_name="value"
-        )
-        melted["measure"] = melted["measure"].map(lambda m: t(m, lang))
-        fig = line_over_time(melted, "period", "value", "measure", "", theme)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    trend_col, map_col = st.columns([3, 2])
 
-    st.write("")
-    st.markdown(f'<div class="section-label">{t("coverage", lang)}</div>', unsafe_allow_html=True)
-    density_df = get_city_density()
-    from data.geocoding import CITY_COORDINATES
+    with trend_col:
+        st.markdown(f'<div class="section-label">{t("history", lang)}</div>', unsafe_allow_html=True)
+        history_df = get_multi_year_trend()
+        if not history_df.empty:
+            melted = history_df.melt(
+                id_vars=["period"], value_vars=["revenue", "cost", "profit"], var_name="measure", value_name="value"
+            )
+            melted["measure"] = melted["measure"].map(lambda m: t(m, lang))
+            fig = line_over_time(melted, "period", "value", "measure", "", theme)
+            fig.update_layout(height=420)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    density_df["lat"] = density_df["city"].map(lambda c: CITY_COORDINATES.get(c, (None, None))[0])
-    density_df["lon"] = density_df["city"].map(lambda c: CITY_COORDINATES.get(c, (None, None))[1])
-    density_df = density_df.dropna(subset=["lat", "lon"])
-    if not density_df.empty:
-        fig_map = coverage_map(density_df, "company_count", theme, "")
-        st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
+    with map_col:
+        st.markdown(f'<div class="section-label">{t("coverage", lang)}</div>', unsafe_allow_html=True)
+        density_df = get_city_density()
+        from data.geocoding import CITY_COORDINATES
+
+        density_df["lat"] = density_df["city"].map(lambda c: CITY_COORDINATES.get(c, (None, None))[0])
+        density_df["lon"] = density_df["city"].map(lambda c: CITY_COORDINATES.get(c, (None, None))[1])
+        density_df = density_df.dropna(subset=["lat", "lon"])
+        if not density_df.empty:
+            fig_map = coverage_map(density_df, "company_count", theme, "")
+            fig_map.update_layout(height=420)
+            st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
