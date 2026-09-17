@@ -180,6 +180,11 @@ def company_scatter_map(
     # area-proportional: marker area ~ value, so radius ~ sqrt(value)
     jittered["_marker_size"] = 8 + 32 * (jittered[size_col].abs() / max_val).pow(0.5)
 
+    # No fixed center/zoom: a hardcoded Norway-wide view (fine for the
+    # coverage map) pushes west-coast cities off-screen entirely in a
+    # narrow column (e.g. the Clients tab's single-client map) — letting
+    # Plotly auto-fit bounds to the actual points keeps every marker visible
+    # regardless of how many points or how narrow the container is.
     fig = px.scatter_map(
         jittered,
         lat="_lat_j",
@@ -188,11 +193,11 @@ def company_scatter_map(
         size_max=40,
         color=color_col,
         color_continuous_scale=SEQUENTIAL_TEAL_NAVY[theme],
-        zoom=3.9,
-        center={"lat": 64.5, "lon": 13.0},
         hover_name=hover_name,
         custom_data=[hover_extra, color_col, secondary_col],
     )
+    if len(jittered) == 1:
+        fig.update_layout(map=dict(center={"lat": jittered["_lat_j"].iloc[0], "lon": jittered["_lon_j"].iloc[0]}, zoom=7))
     fig.update_traces(
         hovertemplate=(
             "<b>%{hovertext}</b><br>"
@@ -204,12 +209,18 @@ def company_scatter_map(
             + ": %{customdata[2]:,.1f}<extra></extra>"
         )
     )
+    # A colorbar is meaningless for a single point (min == max) and, worse,
+    # squeezes the actual map into a sliver in a narrow column (e.g. the
+    # Clients tab's single-client detail map) — only show it once there's
+    # an actual range of values to read.
+    show_colorbar = jittered[color_col].nunique() > 1
     fig.update_layout(
         map_style="dark" if theme == "dark" else "light",
         paper_bgcolor=c["surface"],
         margin=dict(l=0, r=0, t=32, b=0),
         title=dict(text=title, font=dict(size=13, color=c["text_secondary"], family=FONT_FAMILY)),
         font=dict(family=FONT_FAMILY, color=c["text_secondary"]),
+        coloraxis_showscale=show_colorbar,
         coloraxis_colorbar=dict(title=None, tickfont=dict(color=c["muted"]), len=0.7),
     )
     return fig
