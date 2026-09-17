@@ -95,28 +95,39 @@ def nav_bar(active: str, lang: str, theme: str, t_func) -> tuple[str, str, str]:
 
 
 def year_switcher(years: list[int], selected: str | int, label_all: str) -> str | int:
-    """Row of pill buttons: one per year + 'All years'. Returns the selection."""
+    """Row of pill buttons: one per year + 'All years'. Returns the selection.
+
+    Wrapped in a container keyed "pill_years" so the pill styling in
+    theme.py (rounded, bordered) only applies here and to segmented_control
+    — never to the nav bar's own buttons (see ui/theme.py's pill-scoping note).
+    """
     options = ["all"] + list(years)
-    cols = st.columns(len(options))
     result = selected
-    for col, opt in zip(cols, options):
-        with col:
-            label = f"📅 {label_all}" if opt == "all" else f"🗓 {opt}"
-            btn_type = "primary" if opt == selected else "secondary"
-            if st.button(label, key=f"year_{opt}", use_container_width=True, type=btn_type):
-                result = opt
+    with st.container(key="pill_years"):
+        cols = st.columns(len(options))
+        for col, opt in zip(cols, options):
+            with col:
+                label = f"📅 {label_all}" if opt == "all" else f"🗓 {opt}"
+                btn_type = "primary" if opt == selected else "secondary"
+                if st.button(label, key=f"year_{opt}", use_container_width=True, type=btn_type):
+                    result = opt
     return result
 
 
 def segmented_control(options: list[tuple[str, str]], selected: str, key_prefix: str) -> str:
-    """options: list of (value, label). Returns selected value."""
-    cols = st.columns(len(options))
+    """options: list of (value, label). Returns selected value.
+
+    Wrapped in a "pill_<key_prefix>" container — see year_switcher's
+    docstring for why this scoping matters.
+    """
     result = selected
-    for col, (value, label) in zip(cols, options):
-        with col:
-            btn_type = "primary" if value == selected else "secondary"
-            if st.button(label, key=f"{key_prefix}_{value}", use_container_width=True, type=btn_type):
-                result = value
+    with st.container(key=f"pill_{key_prefix}"):
+        cols = st.columns(len(options))
+        for col, (value, label) in zip(cols, options):
+            with col:
+                btn_type = "primary" if value == selected else "secondary"
+                if st.button(label, key=f"{key_prefix}_{value}", use_container_width=True, type=btn_type):
+                    result = value
     return result
 
 

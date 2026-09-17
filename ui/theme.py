@@ -96,11 +96,17 @@ def inject_global_css(theme: str) -> str:
     .st-key-app_nav div[data-testid="stButton"] > button {{
         background: transparent;
         border: none !important;
+        border-radius: 6px !important;
         color: {t['text_secondary']};
+        font-weight: 600 !important;
     }}
     .st-key-app_nav div[data-testid="stButton"] > button[kind="primary"] {{
         background: {t['navy']} !important;
         color: white !important;
+    }}
+    .st-key-app_nav div[data-testid="stButton"] > button:hover {{
+        color: {t['navy']} !important;
+        border-color: transparent !important;
     }}
     .brand {{
         font-family: {FONT_DISPLAY};
@@ -162,14 +168,16 @@ def inject_global_css(theme: str) -> str:
         margin: 4px 0 10px 0;
     }}
 
-    /* Year switcher pills */
-    div[data-testid="stButton"] > button {{
+    /* Pill controls (year switcher, segmented controls) — scoped to
+       containers whose st.container(key=...) starts with "pill_", so this
+       never bleeds into the nav bar's own button styling above. */
+    [class*="st-key-pill_"] div[data-testid="stButton"] > button {{
         border-radius: 999px !important;
         border: 1px solid {t['border']} !important;
         font-weight: 600 !important;
         font-size: 13px !important;
     }}
-    div[data-testid="stButton"] > button:hover {{
+    [class*="st-key-pill_"] div[data-testid="stButton"] > button:hover {{
         border-color: {t['navy']} !important;
         color: {t['navy']} !important;
     }}
