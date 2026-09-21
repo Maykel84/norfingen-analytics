@@ -146,9 +146,17 @@ def bar_breakdown(
     color is None), each bar is tinted by its own value on that sequential
     ramp instead of one flat color, so a ranked breakdown reads with some
     visual life rather than as identical same-color bars."""
-    palette = CATEGORICAL[theme]
+    palette = list(CATEGORICAL[theme])
     value_axis = "x" if orientation == "h" else "y"
     category_axis = "y" if orientation == "h" else "x"
+
+    # Same "Other" overflow rule as stacked_area(): our validated categorical
+    # set has exactly 3 hues, so a 4th+ identity series gets a neutral gray
+    # rather than an invented, unvalidated 4th hue.
+    if color and color in df.columns:
+        n_series = df[color].nunique()
+        if n_series > len(palette):
+            palette += [CHROME[theme]["muted"]] * (n_series - len(palette))
 
     if color_scale and color is None:
         ramp = SEQUENTIAL_WARM[theme] if color_scale == "warm" else SEQUENTIAL[theme]
@@ -179,29 +187,6 @@ def bar_breakdown(
         fig.update_traces(hovertemplate=f"%{{{category_axis}}}: %{{{value_axis}:,.0f}}{value_suffix}<extra></extra>")
     else:
         fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{{value_axis}:,.0f}}{value_suffix}<extra></extra>")
-    _style_axes(fig, theme)
-    return fig
-
-
-def stacked_area(
-    df: pd.DataFrame, x: str, y: str, color: str, title: str, theme: str, value_suffix: str = "",
-) -> go.Figure:
-    """Stacked area — smoother reading of a long time series broken into a
-    few categories than a stacked bar (used for Utilization's 100+ months
-    of billable/internal/sick hours, which read as visual noise as bars).
-
-    Our validated categorical set has exactly 3 hues (see module docstring).
-    A 4th+ series doesn't get a 4th invented hue — per the dataviz skill,
-    overflow folds into a neutral "Other" rather than needing its own CVD
-    validation, so extra series beyond the 3 get a muted gray instead."""
-    n_series = df[color].nunique() if color in df.columns else 1
-    palette = list(CATEGORICAL[theme])
-    if n_series > len(palette):
-        palette += [CHROME[theme]["muted"]] * (n_series - len(palette))
-    fig = px.area(df, x=x, y=y, color=color, color_discrete_sequence=palette)
-    fig.update_traces(line=dict(width=1))
-    fig.update_layout(**_base_layout(theme, title))
-    fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{y:,.0f}}{value_suffix}<extra></extra>")
     _style_axes(fig, theme)
     return fig
 

@@ -144,6 +144,9 @@ TRANSLATIONS = {
     "parental_leave": {"en": "Parental leave", "pl": "Urlop rodzicielski", "no": "Foreldrepermisjon"},
     "welfare_leave": {"en": "Other leave", "pl": "Inne nieobecności", "no": "Annen permisjon"},
     "absences": {"en": "Absences", "pl": "Nieobecności", "no": "Fravær"},
+    "absences_by_department": {
+        "en": "Absences by department", "pl": "Nieobecności wg działu", "no": "Fravær per avdeling",
+    },
     "days": {"en": "Days", "pl": "Dni", "no": "Dager"},
     "hours": {"en": "Hours", "pl": "Godziny", "no": "Timer"},
     "account": {"en": "Account", "pl": "Konto", "no": "Konto"},

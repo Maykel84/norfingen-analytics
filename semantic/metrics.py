@@ -492,12 +492,13 @@ def get_utilization_trend(granularity: str = "month", date_range: tuple | None =
     return df
 
 
-def get_absence_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
+def get_absence_trend(granularity: str = "year", date_range: tuple | None = None) -> pd.DataFrame:
     """Absence *days* (not hours — see module note above) by type over time,
-    company-wide. Deliberately no employee/department breakdown here:
-    absence type (sick/parental/welfare leave) is sensitive personal data
-    even in this synthetic dataset, so this stays a company-level aggregate
-    by default — ask before building any per-employee or named breakdown."""
+    company-wide. Company-level aggregate by default — see
+    get_absence_by_department()'s docstring for why department (but not
+    employee) breakdown is also offered. Defaults to yearly granularity:
+    monthly absence counts are naturally bursty (vacation concentrated in
+    a handful of months) and read as noise at that resolution."""
     period = _period_expr(granularity, "he.date")
     where_sql, params = _date_range_clause(date_range, "he.date")
     sql = f"""
@@ -515,6 +516,29 @@ def get_absence_trend(granularity: str = "month", date_range: tuple | None = Non
     if "period" in df.columns:
         df["period"] = _to_naive_datetime(df["period"])
     return df
+
+
+def get_absence_by_department(date_range: tuple | None = None) -> pd.DataFrame:
+    """Absence days by department and type — answers "where" (which part of
+    the org) and "how" (which kind of absence). Department is an aggregate
+    of several employees, not personally identifying, so this stays within
+    the same privacy default as company-wide totals; a per-employee version
+    would need explicit sign-off first (see module note above)."""
+    where_sql, params = _date_range_clause(date_range, "he.date")
+    sql = f"""
+        SELECT
+            COALESCE(d.name, 'Unassigned') AS department,
+            he.activity_type,
+            COUNT(*) AS days
+        FROM hour_entries he
+        JOIN employees e ON e.id = he.employee_id
+        LEFT JOIN departments d ON d.id = e.department_id
+        WHERE he.activity_type = ANY(:absence_types) {where_sql}
+        GROUP BY d.name, he.activity_type
+        ORDER BY days DESC
+    """
+    params = {**params, "absence_types": list(ABSENCE_ACTIVITY_TYPES)}
+    return run_query(sql, params)
 
 
 def get_cost_by_account(date_range: tuple | None = None) -> pd.DataFrame:

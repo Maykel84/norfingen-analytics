@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from semantic.metrics import (
+    get_absence_by_department,
     get_absence_trend,
     get_cash_flow_trend,
     get_cost_by_account,
@@ -14,7 +15,7 @@ from semantic.metrics import (
     get_supplier_spend,
     get_utilization_trend,
 )
-from ui.charts import bar_breakdown, line_over_time, stacked_area
+from ui.charts import bar_breakdown, line_over_time
 from ui.components import format_currency, format_int
 from ui.i18n import t
 
@@ -75,42 +76,58 @@ def _staffing_section(lang: str, theme: str) -> None:
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
+_ABSENCE_LABELS = {
+    "VACATION": "vacation", "SICK": "sick", "PARENTAL_LEAVE": "parental_leave", "WELFARE_LEAVE": "welfare_leave",
+}
+
+
 def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> None:
     # Billable/internal HOURS and absence DAYS are two different units — never
     # one chart (see get_utilization_trend/get_absence_trend docstrings: the
     # DB now logs vacation/sick/parental/welfare leave as day-markers with
     # hours always 0, which would draw as flat zero lines if mixed in here).
-    df = get_utilization_trend(date_range=date_range)
+    #
+    # Yearly bars, not monthly area: a 100+-point monthly series of bursty
+    # data (vacation concentrated in a few months a year) reads as jagged
+    # noise in an area fill with no readable values. Yearly bars collapse
+    # that to ~8 bars per series with a clean per-bar hover value.
+    df = get_utilization_trend(granularity="year", date_range=date_range)
     if not df.empty:
         label_map = {"BILLABLE": t("billable", lang), "INTERNAL": t("internal", lang)}
         df = df.copy()
+        df["year"] = df["period"].dt.year
         df[t("activity_type", lang)] = df["activity_type"].map(lambda a: label_map.get(a, a.title()))
-        # Stacked area, not stacked bars — a long monthly time series (100+
-        # periods) reads as noise as adjacent bars; an area chart shows the
-        # same billable/internal composition as a smoother trend.
-        fig = stacked_area(df, "period", "hours", t("activity_type", lang), t("hours", lang), theme, value_suffix="")
+        fig = bar_breakdown(df, "year", "hours", t("activity_type", lang), t("hours", lang), theme)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     st.write("")
     st.markdown(f'<div class="section-label">{t("absences", lang)}</div>', unsafe_allow_html=True)
-    # Company-wide aggregate only, deliberately — see get_absence_trend's
-    # docstring: absence type is sensitive personal data even in synthetic
-    # data, so no per-employee or per-department breakdown without asking first.
     absence_df = get_absence_trend(date_range=date_range)
-    if absence_df.empty:
+    if not absence_df.empty:
+        absence_df = absence_df.copy()
+        absence_df["year"] = absence_df["period"].dt.year
+        absence_df[t("activity_type", lang)] = absence_df["activity_type"].map(
+            lambda a: t(_ABSENCE_LABELS.get(a, ""), lang) if a in _ABSENCE_LABELS else a.title()
+        )
+        fig_absence = bar_breakdown(absence_df, "year", "days", t("activity_type", lang), t("days", lang), theme)
+        st.plotly_chart(fig_absence, use_container_width=True, config={"displayModeBar": False})
+
+    # "Where" (department) x "how" (absence type) — a grouped bar answers
+    # exactly that question, which a time trend alone can't. Department is
+    # an aggregate of several employees, not personally identifying — see
+    # get_absence_by_department()'s docstring for the privacy line this
+    # respects (no per-employee breakdown without separate sign-off).
+    st.write("")
+    st.markdown(f'<div class="section-label">{t("absences_by_department", lang)}</div>', unsafe_allow_html=True)
+    dept_df = get_absence_by_department(date_range)
+    if dept_df.empty:
         return
-    absence_label_map = {
-        "VACATION": t("vacation", lang), "SICK": t("sick", lang),
-        "PARENTAL_LEAVE": t("parental_leave", lang), "WELFARE_LEAVE": t("welfare_leave", lang),
-    }
-    absence_df = absence_df.copy()
-    absence_df[t("activity_type", lang)] = absence_df["activity_type"].map(
-        lambda a: absence_label_map.get(a, a.title())
+    dept_df = dept_df.copy()
+    dept_df[t("activity_type", lang)] = dept_df["activity_type"].map(
+        lambda a: t(_ABSENCE_LABELS.get(a, ""), lang) if a in _ABSENCE_LABELS else a.title()
     )
-    fig_absence = stacked_area(
-        absence_df, "period", "days", t("activity_type", lang), t("days", lang), theme, value_suffix="",
-    )
-    st.plotly_chart(fig_absence, use_container_width=True, config={"displayModeBar": False})
+    fig_dept = bar_breakdown(dept_df, "department", "days", t("activity_type", lang), t("days", lang), theme)
+    st.plotly_chart(fig_dept, use_container_width=True, config={"displayModeBar": False})
 
 
 def _cost_by_account_section(lang: str, theme: str, date_range: tuple | None) -> None:
