@@ -26,8 +26,18 @@ CUSTOMER_ATTR_DIMS = {"company", "location", "segment", "nace_name"}
 BREAKDOWN_SAFE_MEASURES = {"revenue", "order_count"}
 
 
-def render(lang: str, theme: str) -> None:
-    min_date, max_date = get_date_bounds()
+def render(lang: str, theme: str, selected_year: int | None) -> None:
+    """selected_year (from the header's global selector) bounds every date
+    picker on this page to that single year — the main filter range and
+    both comparison periods — so "all data in the report" genuinely means
+    all of it, not just Overview/Operations. Pick "All years" globally to
+    get the previous unrestricted (full-history, cross-year) behavior."""
+    data_min, data_max = get_date_bounds()
+    if selected_year is not None:
+        min_date = max(data_min, dt.date(selected_year, 1, 1))
+        max_date = min(data_max, dt.date(selected_year, 12, 31))
+    else:
+        min_date, max_date = data_min, data_max
     companies_df = get_companies()
 
     if "period_type" not in st.session_state:
@@ -62,9 +72,12 @@ def render(lang: str, theme: str) -> None:
             t("segment", lang), options=sorted(companies_df["segment"].dropna().unique()), key="time_segment",
         )
     with filt_col4:
+        default_range = (min_date, max_date) if selected_year is not None else (
+            max(min_date, max_date - dt.timedelta(days=365)), max_date
+        )
         date_range = st.date_input(
-            t("date_range", lang), value=(max(min_date, max_date - dt.timedelta(days=365)), max_date),
-            min_value=min_date, max_value=max_date, key="time_date_range",
+            t("date_range", lang), value=default_range,
+            min_value=min_date, max_value=max_date, key=f"time_date_range_{selected_year}",
         )
 
     filters = {}
@@ -125,18 +138,26 @@ def render(lang: str, theme: str) -> None:
     st.write("")
     st.markdown(f'<div class="section-label">{t("compare_periods", lang)}</div>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
-    default_b_end = max_date
+    if selected_year is not None:
+        # A single year is pinned globally — compare its two halves rather
+        # than an arbitrary trailing-days window that no longer applies.
+        midpoint = dt.date(selected_year, 7, 1)
+        default_a = (min_date, midpoint - dt.timedelta(days=1))
+        default_b = (midpoint, max_date)
+    else:
+        default_a = (max_date - dt.timedelta(days=455), max_date - dt.timedelta(days=365))
+        default_b = (max_date - dt.timedelta(days=90), max_date)
     with col1:
         st.caption(t("period_a", lang))
         period_a = st.date_input(
-            "period_a_input", value=(max_date - dt.timedelta(days=455), max_date - dt.timedelta(days=365)),
-            min_value=min_date, max_value=max_date, key="period_a", label_visibility="collapsed",
+            "period_a_input", value=default_a,
+            min_value=min_date, max_value=max_date, key=f"period_a_{selected_year}", label_visibility="collapsed",
         )
     with col2:
         st.caption(t("period_b", lang))
         period_b = st.date_input(
-            "period_b_input", value=(max_date - dt.timedelta(days=90), max_date),
-            min_value=min_date, max_value=max_date, key="period_b", label_visibility="collapsed",
+            "period_b_input", value=default_b,
+            min_value=min_date, max_value=max_date, key=f"period_b_{selected_year}", label_visibility="collapsed",
         )
 
     if (

@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from data.geocoding import CITY_COORDINATES
-from semantic.metrics import get_client_history, get_client_summary, get_date_bounds
+from semantic.metrics import get_client_history, get_client_projects, get_client_summary, get_date_bounds
 from ui.charts import company_scatter_map, grouped_bar_compare, line_over_time
 from ui.components import format_currency, format_int, kpi_tile, segmented_control
 from ui.i18n import t
@@ -98,7 +98,7 @@ def _render_list(lang: str, theme: str, summary: pd.DataFrame):
             st.markdown("<hr style='margin:4px 0'>", unsafe_allow_html=True)
 
 
-def _render_detail(lang: str, theme: str, summary: pd.DataFrame):
+def _render_detail(lang: str, theme: str, summary: pd.DataFrame, date_range: tuple | None):
     name = st.session_state.selected_client
     row = summary[summary["name"] == name]
     if row.empty:
@@ -116,8 +116,9 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame):
 
     st.caption(f"ℹ️ {t('no_cost_note', lang)}")
     cols = st.columns(3)
+    revenue_label = t("revenue", lang) if date_range else t("lifetime_revenue", lang)
     with cols[0]:
-        kpi_tile(t("lifetime_revenue", lang), format_currency(row["revenue"]), theme)
+        kpi_tile(revenue_label, format_currency(row["revenue"]), theme)
     with cols[1]:
         kpi_tile(t("order_count", lang), format_int(row["order_count"]), theme)
 
@@ -149,12 +150,24 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame):
             ],
             st.session_state.client_period_type, "client_period_type",
         )
-        history_df = get_client_history(name, st.session_state.client_period_type)
+        history_df = get_client_history(name, st.session_state.client_period_type, date_range)
         if not history_df.empty and "period" in history_df.columns:
             fig = line_over_time(
                 history_df.sort_values("period"), "period", "revenue", None, t("revenue", lang), theme
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    projects_df = get_client_projects(name)
+    if not projects_df.empty:
+        st.write("")
+        st.markdown(f'<div class="section-label">{t("projects", lang)}</div>', unsafe_allow_html=True)
+        table = projects_df.rename(
+            columns={
+                "number": t("project_number", lang), "name": t("project_name", lang),
+                "status": t("status", lang), "start_date": t("start_date", lang), "end_date": t("end_date", lang),
+            }
+        )
+        st.dataframe(table, use_container_width=True, hide_index=True)
 
 
 def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
@@ -197,12 +210,16 @@ def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
         st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
 
 
-def render(lang: str, theme: str) -> None:
+def render(lang: str, theme: str, selected_year: int | None) -> None:
+    """selected_year comes from the header's global year selector — revenue/
+    order counts here become "this year" instead of lifetime when it's set,
+    consistently with every other tab."""
     _ensure_state()
-    summary = get_client_summary()
+    date_range = (dt.date(selected_year, 1, 1), dt.date(selected_year, 12, 31)) if selected_year else None
+    summary = get_client_summary(date_range=date_range)
 
     if st.session_state.clients_view == "detail" and st.session_state.selected_client:
-        _render_detail(lang, theme, summary)
+        _render_detail(lang, theme, summary, date_range)
     elif st.session_state.clients_view == "compare" and st.session_state.compare_list:
         _render_compare(lang, theme, summary)
     else:

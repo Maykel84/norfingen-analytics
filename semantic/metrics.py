@@ -265,9 +265,12 @@ def get_measure(
 
 
 def get_companies() -> pd.DataFrame:
-    """Return the customer dimension table (id, name, city, segment, nace_name)."""
+    """Return the customer dimension table (id, name, city, segment,
+    nace_name, plus onboarding/churn dates used to determine which
+    customers were active in a given year)."""
     sql = """
-        SELECT id, name, city, postal_code, segment, nace_name, nace_code
+        SELECT id, name, city, postal_code, segment, nace_name, nace_code,
+               onboarding_date, churn_date
         FROM customers
         ORDER BY name
     """
@@ -325,9 +328,10 @@ def get_monthly_trend_for_year(year: int | None) -> pd.DataFrame:
 
 
 def get_city_density() -> pd.DataFrame:
-    """Company count per city, for the Overview coverage map."""
+    """Company count + the actual company names per city, for the Overview
+    coverage map (size/color = count, hover = names, not just the number)."""
     sql = """
-        SELECT city, COUNT(*) AS company_count
+        SELECT city, COUNT(*) AS company_count, STRING_AGG(name, ', ' ORDER BY name) AS company_names
         FROM customers
         WHERE city IS NOT NULL
         GROUP BY city
@@ -335,10 +339,12 @@ def get_city_density() -> pd.DataFrame:
     return run_query(sql)
 
 
-def get_client_summary(filters: dict | None = None) -> pd.DataFrame:
-    """One row per customer (all 50, even those with zero orders): lifetime
-    revenue/order_count, sector (=nace_name), and a derived size band
-    (revenue tercile across all customers).
+def get_client_summary(filters: dict | None = None, date_range: tuple | None = None) -> pd.DataFrame:
+    """One row per customer (all 50, even those with zero orders): revenue/
+    order_count, sector (=nace_name), and a derived size band (revenue
+    tercile across all customers). date_range=None means all-time (lifetime);
+    pass a (start, end) tuple to scope to a single year — e.g. the global
+    year selector in the header.
 
     Deliberately excludes cost/profit/margin: cost postings (account range
     4000-7999) never carry a customer_id in this dataset — 0% tagged, not a
@@ -348,7 +354,18 @@ def get_client_summary(filters: dict | None = None) -> pd.DataFrame:
     See README's "Cost attribution" section.
     """
     companies = get_companies()
-    revenue_df = _fetch_revenue(["company"], None, None, filters)
+    if date_range is not None:
+        # "Active in year": onboarded on/before the range ends, and not
+        # churned before the range starts — excludes clients who didn't
+        # exist yet or had already left, rather than showing all 50
+        # customers-as-of-today regardless of which year is selected.
+        range_start, range_end = pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
+        onboarding = pd.to_datetime(companies["onboarding_date"])
+        churn = pd.to_datetime(companies["churn_date"])
+        onboarded_mask = onboarding.isna() | (onboarding <= range_end)
+        not_churned_mask = churn.isna() | (churn >= range_start)
+        companies = companies[onboarded_mask & not_churned_mask]
+    revenue_df = _fetch_revenue(["company"], None, date_range, filters)
 
     merged = companies.merge(revenue_df, left_on="name", right_on="company", how="left")
     merged["revenue"] = merged["revenue"].fillna(0.0)
@@ -375,3 +392,256 @@ def get_client_history(
     intentionally excluded — see get_client_summary()'s docstring."""
     filters = {"company": [company_name]}
     return _fetch_revenue([], granularity, date_range, filters)
+
+
+# --- Operations: previously-unused tables (products, suppliers, staffing,
+# hours, GL accounts, payroll, bank transactions, customer lifecycle) ------
+
+
+def get_product_revenue(date_range: tuple | None = None) -> pd.DataFrame:
+    """Revenue/order-count by product and its parent service. Fully
+    attributable — order_lines.product_id is 100% populated, so this carries
+    none of the per-client cost-attribution caveat (it's revenue, not cost)."""
+    where_sql, params = _date_range_clause(date_range, "o.order_date")
+    sql = f"""
+        SELECT
+            p.name AS product,
+            s.name AS service,
+            s.billing_model,
+            SUM(ol.amount_excluding_vat_currency) AS revenue,
+            COUNT(DISTINCT o.id) AS order_count
+        FROM order_lines ol
+        JOIN orders o ON o.id = ol.order_id
+        JOIN products p ON p.id = ol.product_id
+        LEFT JOIN services s ON s.code = p.service_code
+        WHERE 1=1 {where_sql}
+        GROUP BY p.name, s.name, s.billing_model
+        ORDER BY revenue DESC
+    """
+    return run_query(sql, params)
+
+
+def get_supplier_spend(date_range: tuple | None = None) -> pd.DataFrame:
+    """Spend by supplier, from supplier_invoices — the cost-side complement
+    to the Clients tab (cost-to-supplier is fully attributable, unlike
+    cost-to-customer)."""
+    where_sql, params = _date_range_clause(date_range, "si.invoice_date")
+    sql = f"""
+        SELECT
+            s.name AS supplier,
+            COUNT(*) AS invoice_count,
+            SUM(si.amount_excluding_vat_currency) AS spend,
+            SUM(CASE WHEN si.status = 'UNPAID' THEN si.amount_excluding_vat_currency ELSE 0 END) AS unpaid_amount
+        FROM supplier_invoices si
+        JOIN suppliers s ON s.id = si.supplier_id
+        WHERE 1=1 {where_sql}
+        GROUP BY s.name
+        ORDER BY spend DESC
+    """
+    return run_query(sql, params)
+
+
+def get_staffing_summary() -> pd.DataFrame:
+    """Current headcount by department and employment type (current =
+    employments with no end_date)."""
+    sql = """
+        SELECT
+            d.name AS department,
+            emp.employment_type,
+            COUNT(*) AS headcount
+        FROM employments emp
+        JOIN employees e ON e.id = emp.employee_id
+        LEFT JOIN departments d ON d.id = e.department_id
+        WHERE emp.end_date IS NULL
+        GROUP BY d.name, emp.employment_type
+        ORDER BY headcount DESC
+    """
+    return run_query(sql)
+
+
+def get_utilization_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
+    """Hours by activity type (billable/internal/sick) over time — the
+    richest previously-unused table (54k+ rows)."""
+    period = _period_expr(granularity, "he.date")
+    where_sql, params = _date_range_clause(date_range, "he.date")
+    sql = f"""
+        SELECT
+            {period} AS period,
+            he.activity_type,
+            SUM(he.hours) AS hours
+        FROM hour_entries he
+        WHERE 1=1 {where_sql}
+        GROUP BY {period}, he.activity_type
+        ORDER BY period
+    """
+    df = run_query(sql, params)
+    if "period" in df.columns:
+        df["period"] = _to_naive_datetime(df["period"])
+    return df
+
+
+def get_cost_by_account(date_range: tuple | None = None) -> pd.DataFrame:
+    """Whole-company cost broken down by individual GL account (finer than
+    the 3-bucket cogs/labor/opex split) — no per-customer attribution
+    involved, so no caveat applies."""
+    where_sql, params = _date_range_clause(date_range, "v.date")
+    sql = f"""
+        SELECT
+            a.name AS account,
+            {_COST_BUCKET_CASE} AS cost_bucket,
+            SUM(p.amount) AS cost
+        FROM postings p
+        JOIN vouchers v ON v.id = p.voucher_id
+        JOIN accounts a ON a.number = p.account_number
+        WHERE p.account_number BETWEEN 4000 AND 7999 {where_sql}
+        GROUP BY a.name, {_COST_BUCKET_CASE}
+        ORDER BY cost DESC
+    """
+    return run_query(sql, params)
+
+
+def get_payroll_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
+    """Total payroll disbursed per period, from payslips."""
+    period = _period_expr(granularity, "date")
+    where_sql, params = _date_range_clause(date_range, "date")
+    sql = f"""
+        SELECT {period} AS period, SUM(amount) AS payroll
+        FROM payslips
+        WHERE 1=1 {where_sql}
+        GROUP BY {period}
+        ORDER BY period
+    """
+    df = run_query(sql, params)
+    if "period" in df.columns:
+        df["period"] = _to_naive_datetime(df["period"])
+    return df
+
+
+def get_cash_flow_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
+    """Incoming vs. outgoing bank cash flow per period."""
+    period = _period_expr(granularity, "date")
+    where_sql, params = _date_range_clause(date_range, "date")
+    sql = f"""
+        SELECT
+            {period} AS period,
+            SUM(CASE WHEN transaction_type = 'INCOMING' THEN amount ELSE 0 END) AS incoming,
+            SUM(CASE WHEN transaction_type = 'OUTGOING' THEN amount ELSE 0 END) AS outgoing
+        FROM bank_transactions
+        WHERE 1=1 {where_sql}
+        GROUP BY {period}
+        ORDER BY period
+    """
+    df = run_query(sql, params)
+    if "period" in df.columns:
+        df["period"] = _to_naive_datetime(df["period"])
+    df["net"] = df["incoming"] - df["outgoing"]
+    return df
+
+
+def get_customer_lifecycle_events(date_range: tuple | None = None) -> pd.DataFrame:
+    """Onboarding/churn events across all customers, most recent first —
+    derived from customers.onboarding_date/churn_date (the same fields the
+    NorFinGen API's /events endpoint exposes; computed here directly from
+    Postgres rather than calling that external API). No LIMIT: an earlier
+    version capped this at 30 rows, which silently hid every event before
+    ~2025 (including all 50 onboarding events from the company's 2019
+    founding) — a real bug, not a deliberate "recent only" scope."""
+    # Same :date_start/:date_end pair bound once, reused in both UNION
+    # branches — SQLAlchemy allows a named parameter to repeat within one
+    # statement, and both branches filter on the same literal range.
+    where_onboard, params = _date_range_clause(date_range, "onboarding_date")
+    where_churn, _ = _date_range_clause(date_range, "churn_date")
+    sql = f"""
+        SELECT name, segment, onboarding_date AS event_date, 'onboarded' AS event_type
+        FROM customers WHERE onboarding_date IS NOT NULL {where_onboard}
+        UNION ALL
+        SELECT name, segment, churn_date AS event_date, 'churned' AS event_type
+        FROM customers WHERE churn_date IS NOT NULL {where_churn}
+        ORDER BY event_date DESC
+    """
+    return run_query(sql, params)
+
+
+def get_client_projects(company_name: str) -> pd.DataFrame:
+    """Projects belonging to a single client."""
+    sql = """
+        SELECT pr.number, pr.name, pr.status, pr.start_date, pr.end_date
+        FROM projects pr
+        JOIN customers c ON c.id = pr.customer_id
+        WHERE c.name = :name
+        ORDER BY pr.start_date DESC
+    """
+    return run_query(sql, {"name": company_name})
+
+
+def get_most_recent_activity_date(year: int | None = None) -> dt.date | None:
+    """Latest date with any order activity — for the Today page's fallback
+    when the live calendar date has no data yet, or (with year set) the
+    "most recent day in that year" used when the global year selector
+    points at a past year rather than the live calendar."""
+    if year is not None:
+        sql = "SELECT MAX(order_date) AS d FROM orders WHERE EXTRACT(YEAR FROM order_date) = :year"
+        df = run_query(sql, {"year": year})
+    else:
+        sql = "SELECT MAX(order_date) AS d FROM orders"
+        df = run_query(sql)
+    return df["d"].iloc[0] if not df.empty else None
+
+
+def get_daily_snapshot(day: dt.date) -> dict:
+    """Today page: what happened on a specific day."""
+    orders_sql = """
+        SELECT o.id, o.order_date, c.name AS customer, SUM(ol.amount_excluding_vat_currency) AS amount
+        FROM orders o
+        JOIN customers c ON c.id = o.customer_id
+        JOIN order_lines ol ON ol.order_id = o.id
+        WHERE o.order_date = :day
+        GROUP BY o.id, o.order_date, c.name
+        ORDER BY amount DESC
+    """
+    orders_df = run_query(orders_sql, {"day": day})
+    return {
+        "orders": orders_df,
+        "revenue": float(orders_df["amount"].sum()) if not orders_df.empty else 0.0,
+        "order_count": len(orders_df),
+        "client_count": orders_df["customer"].nunique() if not orders_df.empty else 0,
+    }
+
+
+def get_orders_window_stats(anchor_day: dt.date, days: int) -> dict:
+    """Rolling-window order count/revenue ending at anchor_day (inclusive),
+    e.g. the Today page's "last 3 days" / "last 7 days" tiles."""
+    start = anchor_day - dt.timedelta(days=days - 1)
+    sql = """
+        SELECT COUNT(DISTINCT o.id) AS order_count, COALESCE(SUM(ol.amount_excluding_vat_currency), 0) AS revenue
+        FROM orders o
+        JOIN order_lines ol ON ol.order_id = o.id
+        WHERE o.order_date BETWEEN :start AND :end
+    """
+    df = run_query(sql, {"start": start, "end": anchor_day})
+    return {"order_count": int(df["order_count"].iloc[0]), "revenue": float(df["revenue"].iloc[0])}
+
+
+def get_orders_invoice_payment_status(anchor_day: dt.date, days: int) -> pd.DataFrame:
+    """Orders placed in the last `days` (ending at anchor_day), with whether
+    each has been invoiced (orders.invoice_date set and not in the future)
+    and whether a matching customer payment has landed in bank_transactions
+    — the Today page's invoice/payment follow-up view."""
+    start = anchor_day - dt.timedelta(days=days - 1)
+    sql = """
+        SELECT
+            o.id, o.order_date, c.name AS customer,
+            SUM(ol.amount_excluding_vat_currency) AS amount,
+            (o.invoice_date IS NOT NULL AND o.invoice_date <= CURRENT_DATE) AS invoiced,
+            EXISTS (
+                SELECT 1 FROM bank_transactions bt
+                WHERE bt.order_id = o.id AND bt.transaction_type = 'INCOMING'
+            ) AS paid
+        FROM orders o
+        JOIN customers c ON c.id = o.customer_id
+        JOIN order_lines ol ON ol.order_id = o.id
+        WHERE o.order_date BETWEEN :start AND :end
+        GROUP BY o.id, o.order_date, c.name, o.invoice_date
+        ORDER BY o.order_date DESC
+    """
+    return run_query(sql, {"start": start, "end": anchor_day})

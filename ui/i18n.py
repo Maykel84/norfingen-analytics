@@ -2,13 +2,16 @@
 
 LANGUAGES = {"en": "English", "pl": "Polski", "no": "Norsk"}
 
+NAV_ITEMS = ["today", "overview", "time", "clients", "operations"]
+
 TRANSLATIONS = {
     "app_title": {
-        "en": "NORFINGEN ANALYTICS",
-        "pl": "NORFINGEN ANALYTICS",
-        "no": "NORFINGEN ANALYTICS",
+        "en": "Norfingen Analytics",
+        "pl": "Norfingen Analytics",
+        "no": "Norfingen Analytics",
     },
     "measures": {"en": "Measures", "pl": "Miary", "no": "Målinger"},
+    "measure_label": {"en": "Measure", "pl": "Miara", "no": "Mål"},
     "group_by": {"en": "Group by", "pl": "Grupuj wg", "no": "Grupper etter"},
     "granularity": {"en": "Granularity", "pl": "Ziarnistość", "no": "Granularitet"},
     "date_range": {"en": "Date range", "pl": "Zakres dat", "no": "Datoperiode"},
@@ -42,9 +45,11 @@ TRANSLATIONS = {
     "over_time": {"en": "Over time", "pl": "W czasie", "no": "Over tid"},
     "partial_data": {"en": "partial", "pl": "częściowe", "no": "delvis"},
     # Nav
+    "nav_today": {"en": "Today", "pl": "Dzisiaj", "no": "I dag"},
     "nav_overview": {"en": "Overview", "pl": "Przegląd", "no": "Oversikt"},
     "nav_time": {"en": "Time Analysis", "pl": "Analiza czasowa", "no": "Tidsanalyse"},
     "nav_clients": {"en": "Clients", "pl": "Klienci", "no": "Kunder"},
+    "nav_operations": {"en": "Operations", "pl": "Operacje", "no": "Drift"},
     # Overview
     "all_years": {"en": "All years", "pl": "Wszystkie lata", "no": "Alle år"},
     "client_count": {"en": "Clients", "pl": "Klienci", "no": "Kunder"},
@@ -81,6 +86,64 @@ TRANSLATIONS = {
         "pl": "Koszt/Zysk/Marża nie są dostępne w podziale na firmę, lokalizację, segment lub branżę — koszty nie są śledzone na tym poziomie.",
         "no": "Kostnad/Fortjeneste/Margin er ikke tilgjengelig fordelt på selskap, sted, segment eller bransje — kostnad spores ikke på det nivået.",
     },
+    "projects": {"en": "Projects", "pl": "Projekty", "no": "Prosjekter"},
+    "project_number": {"en": "Project #", "pl": "Nr projektu", "no": "Prosjektnr"},
+    "project_name": {"en": "Name", "pl": "Nazwa", "no": "Navn"},
+    "status": {"en": "Status", "pl": "Status", "no": "Status"},
+    "start_date": {"en": "Start date", "pl": "Data rozpoczęcia", "no": "Startdato"},
+    "end_date": {"en": "End date", "pl": "Data zakończenia", "no": "Sluttdato"},
+    "lifecycle_events": {"en": "Client lifecycle", "pl": "Cykl życia klienta", "no": "Kundens livssyklus"},
+    "onboarded": {"en": "Onboarded", "pl": "Pozyskany", "no": "Onboardet"},
+    "churned": {"en": "Churned", "pl": "Utracony", "no": "Churnet"},
+    "event_date": {"en": "Date", "pl": "Data", "no": "Dato"},
+    "event_type": {"en": "Event", "pl": "Zdarzenie", "no": "Hendelse"},
+    # Today page
+    "today_title": {"en": "Today", "pl": "Dzisiaj", "no": "I dag"},
+    "most_recent_day": {
+        "en": "No activity today yet — showing the most recent day with data:",
+        "pl": "Brak aktywności dzisiaj — pokazuję najnowszy dzień z danymi:",
+        "no": "Ingen aktivitet i dag ennå — viser siste dag med data:",
+    },
+    "todays_revenue": {"en": "Today's revenue", "pl": "Dzisiejszy przychód", "no": "Dagens inntekt"},
+    "todays_orders": {"en": "Today's orders", "pl": "Dzisiejsze zamówienia", "no": "Dagens ordrer"},
+    "active_clients_today": {"en": "Active clients", "pl": "Aktywni klienci", "no": "Aktive kunder"},
+    "todays_activity": {"en": "Today's orders", "pl": "Dzisiejsze zamówienia", "no": "Dagens ordrer"},
+    "no_activity": {"en": "No orders on this day.", "pl": "Brak zamówień tego dnia.", "no": "Ingen ordrer denne dagen."},
+    "recent_activity": {"en": "Recent activity", "pl": "Ostatnia aktywność", "no": "Nylig aktivitet"},
+    "last_n_days": {"en": "Last {n} days", "pl": "Ostatnie {n} dni", "no": "Siste {n} dager"},
+    "invoice_payment_status": {
+        "en": "Invoice & payment status", "pl": "Status faktury i płatności", "no": "Faktura- og betalingsstatus",
+    },
+    "invoiced": {"en": "Invoiced", "pl": "Zafakturowane", "no": "Fakturert"},
+    "paid": {"en": "Paid", "pl": "Zapłacone", "no": "Betalt"},
+    "yes": {"en": "Yes", "pl": "Tak", "no": "Ja"},
+    "no": {"en": "No", "pl": "Nie", "no": "Nei"},
+    # Operations page
+    "products_services": {"en": "Products & services", "pl": "Produkty i usługi", "no": "Produkter og tjenester"},
+    "suppliers": {"en": "Suppliers", "pl": "Dostawcy", "no": "Leverandører"},
+    "staffing": {"en": "Staffing", "pl": "Kadra", "no": "Bemanning"},
+    "utilization": {"en": "Utilization", "pl": "Wykorzystanie czasu", "no": "Utnyttelse"},
+    "cost_by_account": {"en": "Cost by account", "pl": "Koszty wg konta", "no": "Kostnad per konto"},
+    "payroll": {"en": "Payroll", "pl": "Wynagrodzenia", "no": "Lønn"},
+    "cash_flow": {"en": "Cash flow", "pl": "Przepływy pieniężne", "no": "Kontantstrøm"},
+    "product": {"en": "Product", "pl": "Produkt", "no": "Produkt"},
+    "service": {"en": "Service", "pl": "Usługa", "no": "Tjeneste"},
+    "supplier": {"en": "Supplier", "pl": "Dostawca", "no": "Leverandør"},
+    "spend": {"en": "Spend", "pl": "Wydatki", "no": "Utgifter"},
+    "unpaid": {"en": "Unpaid", "pl": "Niezapłacone", "no": "Ubetalt"},
+    "department": {"en": "Department", "pl": "Dział", "no": "Avdeling"},
+    "headcount": {"en": "Headcount", "pl": "Liczba pracowników", "no": "Antall ansatte"},
+    "employment_type": {"en": "Employment type", "pl": "Typ zatrudnienia", "no": "Ansettelsestype"},
+    "activity_type": {"en": "Activity type", "pl": "Typ aktywności", "no": "Aktivitetstype"},
+    "billable": {"en": "Billable", "pl": "Fakturowalne", "no": "Fakturerbart"},
+    "internal": {"en": "Internal", "pl": "Wewnętrzne", "no": "Internt"},
+    "sick": {"en": "Sick", "pl": "Chorobowe", "no": "Sykt"},
+    "hours": {"en": "Hours", "pl": "Godziny", "no": "Timer"},
+    "account": {"en": "Account", "pl": "Konto", "no": "Konto"},
+    "flow_type": {"en": "Flow", "pl": "Kierunek", "no": "Retning"},
+    "incoming": {"en": "Incoming", "pl": "Wpływy", "no": "Inngående"},
+    "outgoing": {"en": "Outgoing", "pl": "Wypływy", "no": "Utgående"},
+    "net": {"en": "Net", "pl": "Netto", "no": "Netto"},
 }
 
 
