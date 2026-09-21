@@ -73,12 +73,17 @@ def nav_bar(
 
     new_active, new_lang, new_theme, new_year = active, lang, theme, selected_year
 
+    show_year = years and active != "today"
+
     with st.container(key="identity_bar"):
-        left, year_col, mid, right = st.columns([2, 2, 2, 2])
+        if show_year:
+            left, year_col, mid, right = st.columns([2, 2, 2, 2])
+        else:
+            left, mid, right = st.columns([4, 2, 2])
         with left:
             st.markdown(f'<div class="brand">◆ {t_func("app_title", lang)}</div>', unsafe_allow_html=True)
-        with year_col:
-            if years:
+        if show_year:
+            with year_col:
                 with st.container(key="select_years"):
                     options = ["all"] + list(years)
                     labels = {"all": t_func("all_years", lang), **{y: str(y) for y in years}}
