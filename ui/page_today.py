@@ -50,15 +50,17 @@ def render(lang: str, theme: str) -> None:
 
     st.write("")
     st.markdown(f'<div class="section-label">{t("recent_activity", lang)}</div>', unsafe_allow_html=True)
-    window_cols = st.columns(2)
-    for col, days in zip(window_cols, (3, 7)):
+    # Two numbers of different units (a count and a currency amount) never
+    # share one tile — "3 · 59,116 kr" reads as noise with no indication of
+    # which number is which. Each gets its own clearly labeled tile instead.
+    window_cols = st.columns(4)
+    for i, days in enumerate((3, 7)):
         stats = get_orders_window_stats(shown_day, days)
-        with col:
-            kpi_tile(
-                t("last_n_days", lang).format(n=days),
-                f"{format_int(stats['order_count'])} · {format_currency(stats['revenue'])}",
-                theme,
-            )
+        window_label = t("last_n_days", lang).format(n=days)
+        with window_cols[i * 2]:
+            kpi_tile(f"{window_label} — {t('revenue', lang)}", format_currency(stats["revenue"]), theme)
+        with window_cols[i * 2 + 1]:
+            kpi_tile(f"{window_label} — {t('order_count', lang)}", format_int(stats["order_count"]), theme)
 
     st.write("")
     st.markdown(f'<div class="section-label">{t("invoice_payment_status", lang)}</div>', unsafe_allow_html=True)
