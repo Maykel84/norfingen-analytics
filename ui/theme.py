@@ -183,12 +183,24 @@ def inject_global_css(theme: str) -> str:
     }}
 
     /* KPI tiles — soft rounded card with a gentle shadow, not a hard left
-       border rule. */
+       border rule. Streamlit's column content wrapper is a flex container
+       with align-items normalizing to flex-start, so a plain injected div
+       shrink-wraps to its own content width instead of filling the column
+       — explicit width:100%/box-sizing here is what makes every tile in a
+       row the same size regardless of how long its number is (the bug:
+       short values like "5.3%" got a wide tile with empty space while long
+       currency values got a narrow tile and wrapped to two lines). */
+    div[data-testid="stMarkdownContainer"]:has(> .kpi-tile) {{
+        width: 100%;
+    }}
     .kpi-tile {{
         background: {t['surface']};
         border-radius: 16px;
         box-shadow: 0 2px 10px {t['shadow']};
-        padding: 14px 18px;
+        padding: 14px 14px;
+        width: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
     }}
     .kpi-label {{
         font-size: 12px;
@@ -197,14 +209,18 @@ def inject_global_css(theme: str) -> str:
         letter-spacing: 0.06em;
         color: {t['text_muted']};
         margin-bottom: 4px;
+        white-space: nowrap;
     }}
     .kpi-value {{
         font-family: {FONT_DISPLAY};
-        font-size: 30px;
+        font-size: 20px;
         font-weight: 600;
         color: {t['text_primary']};
         line-height: 1.15;
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }}
     .kpi-delta-up {{ color: {t['good']}; font-size: 13px; font-weight: 600; }}
     .kpi-delta-down {{ color: {t['critical']}; font-size: 13px; font-weight: 600; }}
@@ -310,5 +326,37 @@ def inject_global_css(theme: str) -> str:
     hr {{ border-color: {t['divider']}; }}
 
     [data-testid="stMetricValue"] {{ font-family: {FONT_DISPLAY}; }}
+
+    /* Fallback theming for plain st.button()s outside the nav/pill/toggle
+       containers above (e.g. Clients tab's "Client profile" button). Without
+       this, the button keeps Streamlit's native light-locked background
+       while its text inherits our dark-mode .stApp color override —
+       light-on-light, invisible (the exact bug reported: readable in light
+       mode purely by accident, unreadable in dark). Lower specificity than
+       every scoped rule above, so those keep taking precedence. */
+    div[data-testid="stButton"] > button {{
+        background: {t['surface']};
+        color: {t['text_primary']};
+        border: 1px solid {t['border']};
+        border-radius: 10px;
+        font-weight: 600;
+    }}
+    div[data-testid="stButton"] > button:hover {{
+        border-color: {t['sage']};
+        color: {t['sage']};
+    }}
+    div[data-testid="stButton"] > button:disabled {{
+        color: {t['text_muted']};
+        border-color: {t['divider']};
+    }}
+
+    /* Widget labels (text_input/multiselect/selectbox/date_input captions
+       like "Search clients", "Sector", "Size") — Streamlit gives these a
+       fixed, low-contrast gray regardless of theme, which reads as barely-
+       there ghost text against our dark surface. */
+    [data-testid="stWidgetLabel"] p {{
+        color: {t['text_secondary']} !important;
+        font-weight: 600 !important;
+    }}
     </style>
     """
