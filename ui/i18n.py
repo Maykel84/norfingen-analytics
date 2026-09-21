@@ -147,6 +147,27 @@ TRANSLATIONS = {
     "absences_by_department": {
         "en": "Absences by department", "pl": "Nieobecności wg działu", "no": "Fravær per avdeling",
     },
+    "payroll_by_employee": {
+        "en": "Payroll by employee", "pl": "Wynagrodzenia wg pracownika", "no": "Lønn per ansatt",
+    },
+    "employee": {"en": "Employee", "pl": "Pracownik", "no": "Ansatt"},
+    "gross_annual": {"en": "Gross annual", "pl": "Brutto rocznie", "no": "Brutto årlig"},
+    "yoy_growth": {"en": "YoY growth", "pl": "Wzrost r/r", "no": "Vekst å/å"},
+    "employer_cost": {"en": "Employer cost", "pl": "Koszt pracodawcy", "no": "Arbeidsgiverkostnad"},
+    "employer_cost_note": {
+        "en": "Employer cost = gross × 1.141 (14.1% employer's National Insurance contribution, Zone 1).",
+        "pl": "Koszt pracodawcy = brutto × 1,141 (14,1% składki pracodawcy, strefa 1 wg danych z bazy).",
+        "no": "Arbeidsgiverkostnad = brutto × 1,141 (14,1% arbeidsgiveravgift, sone 1).",
+    },
+    "payroll_year_label": {"en": "Year", "pl": "Rok", "no": "År"},
+    "select_employee": {"en": "Select employee", "pl": "Wybierz pracownika", "no": "Velg ansatt"},
+    "amount_type": {"en": "Amount type", "pl": "Rodzaj kwoty", "no": "Beløpstype"},
+    "amount": {"en": "Amount", "pl": "Kwota", "no": "Beløp"},
+    "partial_year_note": {
+        "en": "year in progress, not fully paid out yet",
+        "pl": "rok w trakcie, jeszcze niekompletny",
+        "no": "året pågår, ikke fullt utbetalt ennå",
+    },
     "days": {"en": "Days", "pl": "Dni", "no": "Dager"},
     "hours": {"en": "Hours", "pl": "Godziny", "no": "Timer"},
     "account": {"en": "Account", "pl": "Konto", "no": "Konto"},

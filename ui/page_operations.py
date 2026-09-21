@@ -9,13 +9,14 @@ from semantic.metrics import (
     get_cash_flow_trend,
     get_cost_by_account,
     get_customer_lifecycle_events,
+    get_payroll_by_employee,
     get_payroll_trend,
     get_product_revenue,
     get_staffing_summary,
     get_supplier_spend,
     get_utilization_trend,
 )
-from ui.charts import bar_breakdown, line_over_time
+from ui.charts import bar_breakdown, grouped_bar_compare, line_over_time
 from ui.components import format_currency, format_int
 from ui.i18n import t
 
@@ -143,10 +144,60 @@ def _cost_by_account_section(lang: str, theme: str, date_range: tuple | None) ->
 
 def _payroll_section(lang: str, theme: str, date_range: tuple | None) -> None:
     df = get_payroll_trend(date_range=date_range)
-    if df.empty:
+    if not df.empty:
+        fig = line_over_time(df, "period", "payroll", None, t("payroll", lang), theme, value_suffix=" kr", fill=True)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    st.write("")
+    st.markdown(f'<div class="section-label">{t("payroll_by_employee", lang)}</div>', unsafe_allow_html=True)
+    emp_df = get_payroll_by_employee()
+    if emp_df.empty:
         return
-    fig = line_over_time(df, "period", "payroll", None, t("payroll", lang), theme, value_suffix=" kr", fill=True)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    full_years = emp_df.loc[emp_df["is_full_year"], "year"]
+    latest_year = int(full_years.max()) if not full_years.empty else int(emp_df["year"].max())
+    latest = emp_df[emp_df["year"] == latest_year].sort_values("gross_annual", ascending=False).copy()
+    latest["yoy_growth_pct"] = latest["yoy_growth_pct"].map(
+        lambda v: f"{v:+.1f}%" if pd.notna(v) else "—"
+    )
+    table = latest.rename(
+        columns={
+            "employee": t("employee", lang), "department": t("department", lang),
+            "gross_annual": t("gross_annual", lang), "yoy_growth_pct": t("yoy_growth", lang),
+            "employer_cost": t("employer_cost", lang),
+        }
+    )
+    table[t("gross_annual", lang)] = table[t("gross_annual", lang)].map(format_currency)
+    table[t("employer_cost", lang)] = table[t("employer_cost", lang)].map(format_currency)
+    st.caption(f"{t('payroll_year_label', lang)} {latest_year} · {t('employer_cost_note', lang)}")
+    st.dataframe(
+        table[[
+            t("employee", lang), t("department", lang), t("gross_annual", lang),
+            t("yoy_growth", lang), t("employer_cost", lang),
+        ]],
+        use_container_width=True, hide_index=True,
+    )
+
+    st.write("")
+    employees = sorted(emp_df["employee"].unique())
+    selected_emp = st.selectbox(t("select_employee", lang), employees, key="payroll_employee_select")
+    emp_trend = emp_df[emp_df["employee"] == selected_emp].sort_values("year")
+    if not emp_trend.empty and not bool(emp_trend.iloc[-1]["is_full_year"]):
+        st.caption(f"{int(emp_trend.iloc[-1]['year'])}: {t('partial_year_note', lang)}")
+    melted = emp_trend.melt(
+        id_vars=["year"], value_vars=["gross_annual", "employer_cost"],
+        var_name="cost_type", value_name="amount",
+    )
+    melted["cost_type"] = melted["cost_type"].map(
+        {"gross_annual": t("gross_annual", lang), "employer_cost": t("employer_cost", lang)}
+    )
+    melted = melted.rename(columns={"cost_type": t("amount_type", lang)})
+    # Grouped, not stacked: employer_cost already includes gross_annual
+    # (it's gross x 1.141), so stacking would double-count it.
+    fig_emp = grouped_bar_compare(
+        melted, "year", "amount", t("amount_type", lang), t("amount", lang), theme, value_suffix=" kr",
+    )
+    st.plotly_chart(fig_emp, use_container_width=True, config={"displayModeBar": False})
 
 
 def _cash_flow_section(lang: str, theme: str, date_range: tuple | None) -> None:

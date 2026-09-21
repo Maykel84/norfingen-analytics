@@ -191,13 +191,18 @@ def bar_breakdown(
     return fig
 
 
-def grouped_bar_compare(df: pd.DataFrame, x: str, y: str, color: str, title: str, theme: str) -> go.Figure:
-    """Grouped bars for client compare mode — color is entity identity (<=3), not magnitude."""
+def grouped_bar_compare(
+    df: pd.DataFrame, x: str, y: str, color: str, title: str, theme: str, value_suffix: str = "",
+) -> go.Figure:
+    """Grouped (not stacked) bars for comparing independent totals side by
+    side — e.g. client compare mode (color is entity identity) or two
+    totals that shouldn't be summed together, like gross pay vs. total
+    employer cost (the latter already includes the former)."""
     palette = CATEGORICAL[theme]
     fig = px.bar(df, x=x, y=y, color=color, barmode="group", color_discrete_sequence=palette)
     fig.update_traces(marker_line_width=0)
     fig.update_layout(**_base_layout(theme, title))
-    fig.update_traces(hovertemplate="%{fullData.name}: %{y:,.0f}<extra></extra>")
+    fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{y:,.0f}}{value_suffix}<extra></extra>")
     _style_axes(fig, theme)
     return fig
 

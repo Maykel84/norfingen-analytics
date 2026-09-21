@@ -578,6 +578,52 @@ def get_payroll_trend(granularity: str = "month", date_range: tuple | None = Non
     return df
 
 
+# employments.payroll_tax_zone is ZONE_1 for every employee in this DB —
+# Norway's official employer's National Insurance contribution
+# ("arbeidsgiveravgift") rate for Zone 1 is 14.1%. Not broken out anywhere
+# in postings (which don't split labor cost per employee), so it's applied
+# as a flat multiplier here rather than sourced from a per-posting amount.
+EMPLOYER_COST_MULTIPLIER = 1.141
+
+
+def get_payroll_by_employee() -> pd.DataFrame:
+    """Gross annual pay per employee per year, YoY growth, and estimated
+    employer cost (gross x EMPLOYER_COST_MULTIPLIER).
+
+    Named per-employee data, shown only because the user explicitly asked
+    for a named salary breakdown (confirmed 2026-09-21) — unlike absence
+    data, which stays department-level by default. Ignores the global year
+    filter: a year-over-year growth view is inherently multi-year.
+    """
+    sql = """
+        SELECT
+            e.id AS employee_id,
+            e.first_name || ' ' || e.last_name AS employee,
+            d.name AS department,
+            EXTRACT(YEAR FROM p.date)::int AS year,
+            COUNT(DISTINCT EXTRACT(MONTH FROM p.date)) AS months_paid,
+            SUM(p.amount) AS gross_annual
+        FROM payslips p
+        JOIN employees e ON e.id = p.employee_id
+        LEFT JOIN departments d ON d.id = e.department_id
+        GROUP BY e.id, employee, d.name, year
+        ORDER BY e.id, year
+    """
+    df = run_query(sql)
+    if df.empty:
+        return df
+    df = df.sort_values(["employee_id", "year"])
+    # A year with fewer than 12 paid months (the current, still-running year)
+    # would show as a fake pay cut against a full prior year — pct_change
+    # skips it by comparing only full years.
+    df["is_full_year"] = df["months_paid"] >= 12
+    full = df[df["is_full_year"]].copy()
+    full["yoy_growth_pct"] = full.groupby("employee_id")["gross_annual"].pct_change() * 100
+    df = df.merge(full[["employee_id", "year", "yoy_growth_pct"]], on=["employee_id", "year"], how="left")
+    df["employer_cost"] = df["gross_annual"] * EMPLOYER_COST_MULTIPLIER
+    return df
+
+
 def get_cash_flow_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
     """Incoming vs. outgoing bank cash flow per period."""
     period = _period_expr(granularity, "date")
