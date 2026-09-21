@@ -459,9 +459,20 @@ def get_staffing_summary() -> pd.DataFrame:
     return run_query(sql)
 
 
+
+# hour_entries.activity_type as of the latest schema check: BILLABLE and
+# INTERNAL carry real hours; VACATION/SICK/PARENTAL_LEAVE/WELFARE_LEAVE are
+# day-markers with hours always 0 (absence is logged as a day entry, not a
+# duration) — verified directly against the live DB, not assumed. Mixing
+# the two in one hours-summed chart would draw the absence types as flat
+# zero lines, so they're tracked separately as day counts (get_absence_trend).
+HOUR_BASED_ACTIVITY_TYPES = ("BILLABLE", "INTERNAL")
+ABSENCE_ACTIVITY_TYPES = ("VACATION", "SICK", "PARENTAL_LEAVE", "WELFARE_LEAVE")
+
+
 def get_utilization_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
-    """Hours by activity type (billable/internal/sick) over time — the
-    richest previously-unused table (54k+ rows)."""
+    """Hours by activity type (billable/internal only — see module note
+    above) over time — the richest previously-unused table (54k+ rows)."""
     period = _period_expr(granularity, "he.date")
     where_sql, params = _date_range_clause(date_range, "he.date")
     sql = f"""
@@ -470,10 +481,36 @@ def get_utilization_trend(granularity: str = "month", date_range: tuple | None =
             he.activity_type,
             SUM(he.hours) AS hours
         FROM hour_entries he
-        WHERE 1=1 {where_sql}
+        WHERE he.activity_type = ANY(:hour_types) {where_sql}
         GROUP BY {period}, he.activity_type
         ORDER BY period
     """
+    params = {**params, "hour_types": list(HOUR_BASED_ACTIVITY_TYPES)}
+    df = run_query(sql, params)
+    if "period" in df.columns:
+        df["period"] = _to_naive_datetime(df["period"])
+    return df
+
+
+def get_absence_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
+    """Absence *days* (not hours — see module note above) by type over time,
+    company-wide. Deliberately no employee/department breakdown here:
+    absence type (sick/parental/welfare leave) is sensitive personal data
+    even in this synthetic dataset, so this stays a company-level aggregate
+    by default — ask before building any per-employee or named breakdown."""
+    period = _period_expr(granularity, "he.date")
+    where_sql, params = _date_range_clause(date_range, "he.date")
+    sql = f"""
+        SELECT
+            {period} AS period,
+            he.activity_type,
+            COUNT(*) AS days
+        FROM hour_entries he
+        WHERE he.activity_type = ANY(:absence_types) {where_sql}
+        GROUP BY {period}, he.activity_type
+        ORDER BY period
+    """
+    params = {**params, "absence_types": list(ABSENCE_ACTIVITY_TYPES)}
     df = run_query(sql, params)
     if "period" in df.columns:
         df["period"] = _to_naive_datetime(df["period"])
@@ -539,25 +576,28 @@ def get_cash_flow_trend(granularity: str = "month", date_range: tuple | None = N
 
 
 def get_customer_lifecycle_events(date_range: tuple | None = None) -> pd.DataFrame:
-    """Onboarding/churn events across all customers, most recent first —
-    derived from customers.onboarding_date/churn_date (the same fields the
-    NorFinGen API's /events endpoint exposes; computed here directly from
-    Postgres rather than calling that external API). No LIMIT: an earlier
-    version capped this at 30 rows, which silently hid every event before
-    ~2025 (including all 50 onboarding events from the company's 2019
-    founding) — a real bug, not a deliberate "recent only" scope."""
-    # Same :date_start/:date_end pair bound once, reused in both UNION
-    # branches — SQLAlchemy allows a named parameter to repeat within one
-    # statement, and both branches filter on the same literal range.
+    """One row per customer: when they were acquired (onboarding_date) and
+    their current status (active / churned), derived from
+    customers.onboarding_date/churn_date (the same fields the NorFinGen
+    API's /events endpoint exposes; computed here directly from Postgres
+    rather than calling that external API).
+
+    Previously this was a flat onboarded/churned *event* log — but 50/50
+    customers have an onboarding_date and only 3/50 have ever churned, so
+    that log was almost entirely "onboarded" rows and never actually
+    answered "is this client active?" A status table does. date_range
+    filters to customers onboarded on/before the range (i.e. who existed
+    yet) — churn status is always their current status, not scoped to the
+    period, since "active as of now" is what the label means either way.
+    """
     where_onboard, params = _date_range_clause(date_range, "onboarding_date")
-    where_churn, _ = _date_range_clause(date_range, "churn_date")
     sql = f"""
-        SELECT name, segment, onboarding_date AS event_date, 'onboarded' AS event_type
-        FROM customers WHERE onboarding_date IS NOT NULL {where_onboard}
-        UNION ALL
-        SELECT name, segment, churn_date AS event_date, 'churned' AS event_type
-        FROM customers WHERE churn_date IS NOT NULL {where_churn}
-        ORDER BY event_date DESC
+        SELECT
+            name, segment, onboarding_date, churn_date,
+            CASE WHEN churn_date IS NULL THEN 'active' ELSE 'churned' END AS status
+        FROM customers
+        WHERE onboarding_date IS NOT NULL {where_onboard}
+        ORDER BY onboarding_date DESC
     """
     return run_query(sql, params)
 

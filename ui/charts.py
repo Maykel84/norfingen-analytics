@@ -188,8 +188,16 @@ def stacked_area(
 ) -> go.Figure:
     """Stacked area — smoother reading of a long time series broken into a
     few categories than a stacked bar (used for Utilization's 100+ months
-    of billable/internal/sick hours, which read as visual noise as bars)."""
-    palette = CATEGORICAL[theme]
+    of billable/internal/sick hours, which read as visual noise as bars).
+
+    Our validated categorical set has exactly 3 hues (see module docstring).
+    A 4th+ series doesn't get a 4th invented hue — per the dataviz skill,
+    overflow folds into a neutral "Other" rather than needing its own CVD
+    validation, so extra series beyond the 3 get a muted gray instead."""
+    n_series = df[color].nunique() if color in df.columns else 1
+    palette = list(CATEGORICAL[theme])
+    if n_series > len(palette):
+        palette += [CHROME[theme]["muted"]] * (n_series - len(palette))
     fig = px.area(df, x=x, y=y, color=color, color_discrete_sequence=palette)
     fig.update_traces(line=dict(width=1))
     fig.update_layout(**_base_layout(theme, title))

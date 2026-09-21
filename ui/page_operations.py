@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from semantic.metrics import (
+    get_absence_trend,
     get_cash_flow_trend,
     get_cost_by_account,
     get_customer_lifecycle_events,
@@ -75,17 +76,41 @@ def _staffing_section(lang: str, theme: str) -> None:
 
 
 def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> None:
+    # Billable/internal HOURS and absence DAYS are two different units — never
+    # one chart (see get_utilization_trend/get_absence_trend docstrings: the
+    # DB now logs vacation/sick/parental/welfare leave as day-markers with
+    # hours always 0, which would draw as flat zero lines if mixed in here).
     df = get_utilization_trend(date_range=date_range)
-    if df.empty:
+    if not df.empty:
+        label_map = {"BILLABLE": t("billable", lang), "INTERNAL": t("internal", lang)}
+        df = df.copy()
+        df[t("activity_type", lang)] = df["activity_type"].map(lambda a: label_map.get(a, a.title()))
+        # Stacked area, not stacked bars — a long monthly time series (100+
+        # periods) reads as noise as adjacent bars; an area chart shows the
+        # same billable/internal composition as a smoother trend.
+        fig = stacked_area(df, "period", "hours", t("activity_type", lang), t("hours", lang), theme, value_suffix="")
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    st.write("")
+    st.markdown(f'<div class="section-label">{t("absences", lang)}</div>', unsafe_allow_html=True)
+    # Company-wide aggregate only, deliberately — see get_absence_trend's
+    # docstring: absence type is sensitive personal data even in synthetic
+    # data, so no per-employee or per-department breakdown without asking first.
+    absence_df = get_absence_trend(date_range=date_range)
+    if absence_df.empty:
         return
-    label_map = {"BILLABLE": t("billable", lang), "INTERNAL": t("internal", lang), "SICK": t("sick", lang)}
-    df = df.copy()
-    df[t("activity_type", lang)] = df["activity_type"].map(lambda a: label_map.get(a, a.title()))
-    # Stacked area, not stacked bars — a long monthly time series (100+
-    # periods) reads as noise as adjacent bars; an area chart shows the
-    # same billable/internal/sick composition as a smoother trend.
-    fig = stacked_area(df, "period", "hours", t("activity_type", lang), t("hours", lang), theme, value_suffix="")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    absence_label_map = {
+        "VACATION": t("vacation", lang), "SICK": t("sick", lang),
+        "PARENTAL_LEAVE": t("parental_leave", lang), "WELFARE_LEAVE": t("welfare_leave", lang),
+    }
+    absence_df = absence_df.copy()
+    absence_df[t("activity_type", lang)] = absence_df["activity_type"].map(
+        lambda a: absence_label_map.get(a, a.title())
+    )
+    fig_absence = stacked_area(
+        absence_df, "period", "days", t("activity_type", lang), t("days", lang), theme, value_suffix="",
+    )
+    st.plotly_chart(fig_absence, use_container_width=True, config={"displayModeBar": False})
 
 
 def _cost_by_account_section(lang: str, theme: str, date_range: tuple | None) -> None:
@@ -121,16 +146,21 @@ def _cash_flow_section(lang: str, theme: str, date_range: tuple | None) -> None:
 
 
 def _lifecycle_section(lang: str, theme: str, date_range: tuple | None) -> None:
+    # One row per client: acquisition date + current status (active/churned)
+    # — not a flat event log. 50/50 clients have an onboarding date but only
+    # 3/50 have ever churned, so a log of "events" was almost entirely
+    # onboarding rows and never actually answered "is this client active?".
     df = get_customer_lifecycle_events(date_range)
     if df.empty:
         return
-    label_map = {"onboarded": t("onboarded", lang), "churned": t("churned", lang)}
+    status_map = {"active": t("active_status", lang), "churned": t("churned", lang)}
     df = df.copy()
-    df["event_type"] = df["event_type"].map(lambda e: label_map.get(e, e))
+    df["status"] = df["status"].map(lambda s: status_map.get(s, s))
     table = df.rename(
         columns={
             "name": t("company", lang), "segment": t("segment", lang),
-            "event_date": t("event_date", lang), "event_type": t("event_type", lang),
+            "onboarding_date": t("onboarded", lang), "churn_date": t("churned", lang),
+            "status": t("status_label", lang),
         }
     )
     st.dataframe(table, use_container_width=True, hide_index=True)
