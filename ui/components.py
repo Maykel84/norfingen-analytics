@@ -56,47 +56,65 @@ def kpi_tile(label: str, value: str, theme: str, delta: str | None = None, spark
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=f"spark_{label}")
 
 
-def nav_bar(active: str, lang: str, theme: str, t_func) -> tuple[str, str, str]:
-    """Renders the persistent top nav shell. Returns (new_active, new_lang, new_theme).
+def nav_bar(
+    active: str, lang: str, theme: str, t_func, years: list[int] | None = None, selected_year: str | int = "all",
+) -> tuple[str, str, str, str | int]:
+    """Renders the persistent two-row header. Returns
+    (new_active, new_lang, new_theme, new_year).
 
-    Language and theme are icon/pill buttons rather than dropdowns — one
-    click each, and the active language reuses the same primary/secondary
-    button styling that marks the active nav tab (see ui/theme.py's
-    .st-key-app_nav rules), so this pinned app chrome reads as one system.
+    Row 1 ("identity_bar"): wordmark + a global year selector + language/
+    theme icon buttons — a slim settings/identity strip, no card background,
+    sitting directly on the page. Row 2 ("app_nav"): the Today/Overview/Time
+    Analysis/Clients/Operations tabs. The year selector lives here (next to
+    the brand) rather than duplicated per-page, since both Overview and
+    Operations need the same "which year" filter.
     """
-    from ui.i18n import LANGUAGES
+    from ui.i18n import LANGUAGES, NAV_ITEMS
 
-    new_active, new_lang, new_theme = active, lang, theme
-    with st.container(key="app_nav"):
-        left, mid, right = st.columns([2, 4, 4])
+    new_active, new_lang, new_theme, new_year = active, lang, theme, selected_year
+
+    with st.container(key="identity_bar"):
+        left, year_col, mid, right = st.columns([2, 2, 2, 2])
         with left:
             st.markdown(f'<div class="brand">◆ {t_func("app_title", lang)}</div>', unsafe_allow_html=True)
-
-        nav_items = [
-            ("overview", t_func("nav_overview", lang)),
-            ("time", t_func("nav_time", lang)),
-            ("clients", t_func("nav_clients", lang)),
-        ]
+        with year_col:
+            if years:
+                with st.container(key="select_years"):
+                    options = ["all"] + list(years)
+                    labels = {"all": t_func("all_years", lang), **{y: str(y) for y in years}}
+                    index = options.index(selected_year) if selected_year in options else 0
+                    new_year = st.selectbox(
+                        "year", options=options, index=index, format_func=lambda o: labels.get(o, str(o)),
+                        key="global_year_select", label_visibility="collapsed",
+                    )
         with mid:
-            cols = st.columns(len(nav_items))
-            for col, (key, label) in zip(cols, nav_items):
-                with col:
-                    btn_type = "primary" if key == active else "secondary"
-                    if st.button(label, key=f"nav_{key}", use_container_width=True, type=btn_type):
-                        new_active = key
-
+            with st.container(key="toggle_lang"):
+                lang_cols = st.columns(len(LANGUAGES))
+                for col, code in zip(lang_cols, LANGUAGES.keys()):
+                    with col:
+                        btn_type = "primary" if code == lang else "secondary"
+                        if st.button(code.upper(), key=f"lang_{code}", use_container_width=True, type=btn_type):
+                            new_lang = code
         with right:
-            lang_cols = st.columns(len(LANGUAGES) + 1)
-            for col, code in zip(lang_cols, LANGUAGES.keys()):
-                with col:
-                    btn_type = "primary" if code == lang else "secondary"
-                    if st.button(code.upper(), key=f"lang_{code}", use_container_width=True, type=btn_type):
-                        new_lang = code
-            with lang_cols[-1]:
-                icon = "☀" if theme == "light" else "☾"
-                if st.button(icon, key="theme_toggle", use_container_width=True, type="secondary"):
-                    new_theme = "dark" if theme == "light" else "light"
-    return new_active, new_lang, new_theme
+            with st.container(key="toggle_theme"):
+                t_cols = st.columns(2)
+                with t_cols[0]:
+                    if st.button("☀", key="theme_light", use_container_width=True, type="primary" if theme == "light" else "secondary"):
+                        new_theme = "light"
+                with t_cols[1]:
+                    if st.button("☾", key="theme_dark", use_container_width=True, type="primary" if theme == "dark" else "secondary"):
+                        new_theme = "dark"
+
+    with st.container(key="app_nav"):
+        cols = st.columns(len(NAV_ITEMS))
+        for col, key in zip(cols, NAV_ITEMS):
+            with col:
+                label = t_func(f"nav_{key}", lang)
+                btn_type = "primary" if key == active else "secondary"
+                if st.button(label, key=f"nav_{key}", use_container_width=True, type=btn_type):
+                    new_active = key
+
+    return new_active, new_lang, new_theme, new_year
 
 
 def year_switcher(years: list[int], selected: str | int, label_all: str) -> str | int:
