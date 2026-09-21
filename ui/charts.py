@@ -1,12 +1,18 @@
-"""Chart builders on the Modernist navy/teal/steel system.
+"""Chart builders on the Organic Business warm/sage/terracotta system.
 
-Palette provenance: the categorical triple below (navy, teal, slate-violet)
-was checked with the dataviz skill's validate_palette.js — all six checks
-pass in both light and dark mode on the *adjacent* pairlist (the only one
-this app needs: every categorical chart here has <=3 series). The sequential
-ramp is a hand-built teal->navy duotone (a brand choice, not the skill's
-strict single-hue ramp) with monotonically decreasing lightness, which is
-what the skill actually checks for sequential/diverging encodings.
+Palette provenance: the categorical triple below (sage, terracotta,
+slate-blue) was checked with the dataviz skill's validate_palette.js — all
+six checks pass in both light and dark mode on the stricter *all-pairs*
+pairlist (safe for scatter/map charts, not just bar/line/stack). Sage and
+terracotta alone collapse under protanopia at business-appropriate
+saturation, so a muted slate-blue fills the third categorical slot — see
+ui/theme.py's module docstring for the full note. The sequential ramp is a
+hand-built cream->sage->forest duotone (a brand choice, not the skill's
+strict single-hue ramp) with monotonically decreasing lightness in light
+mode (darker = bigger, the intuitive reading for a light surface) and the
+anchor flipped in dark mode (brighter = bigger, since dark would recede into
+a dark surface instead of standing out) — both directions are what the skill
+actually checks for sequential encodings, not adjacency CVD.
 """
 
 import math
@@ -16,33 +22,42 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 CATEGORICAL = {
-    "light": ["#1c4fae", "#0c9b7e", "#8452c9"],
-    "dark": ["#4c7fd6", "#12a98d", "#9868d6"],
+    "light": ["#1f6b3a", "#c8661f", "#4f5aa8"],
+    "dark": ["#57a366", "#c97830", "#5f6bbd"],
 }
 
-SEQUENTIAL_TEAL_NAVY = {
-    "light": ["#c7e8e0", "#8ccdbc", "#3cae97", "#0c887a", "#0c6973", "#0d4e6d", "#0d3a69", "#0d2c66"],
-    "dark": ["#134a43", "#128c76", "#24a89e", "#40a8b9", "#5aa7d2", "#6da6e4", "#7aa6f0", "#7aa6f0"],
+SEQUENTIAL = {
+    "light": ["#c7dbc5", "#82b68b", "#4a9159", "#3a7547", "#2c5c38", "#21492c", "#1a3d24"],
+    "dark": ["#30472f", "#4b8755", "#65ac72", "#7bbb86", "#8fc898", "#9ed2a5", "#a8d9ae"],
+}
+
+# Warm (terracotta) sequential twin of SEQUENTIAL — used to color cost-side
+# breakdowns (suppliers, GL accounts) so cost reads visually distinct from
+# revenue-side charts (sage), not just as decoration. Same monotonic-
+# lightness construction as SEQUENTIAL, terracotta hue family instead.
+SEQUENTIAL_WARM = {
+    "light": ["#f0ddc7", "#e3bd93", "#d69b5f", "#c8661f", "#a8551a", "#864417", "#5c2f10"],
+    "dark": ["#3d2c1c", "#6b4423", "#96592a", "#c97830", "#d99456", "#e6ac7a", "#f0c39c"],
 }
 
 STATUS = {"good": "#0ca30c", "warning": "#fab219", "serious": "#ec835a", "critical": "#d03b3b"}
 
 CHROME = {
     "light": {
-        "surface": "#fcfcfb",
-        "text_primary": "#0f1720",
-        "text_secondary": "#4b5563",
-        "muted": "#8a94a0",
-        "grid": "#e3e6e9",
-        "axis": "#c3c2b7",
+        "surface": "#faf7f1",
+        "text_primary": "#2a2318",
+        "text_secondary": "#5c5140",
+        "muted": "#93876f",
+        "grid": "#ece3d3",
+        "axis": "#d8cbb0",
     },
     "dark": {
-        "surface": "#171b20",
-        "text_primary": "#f5f6f7",
-        "text_secondary": "#c3c9d1",
-        "muted": "#7d8792",
-        "grid": "#262c33",
-        "axis": "#383835",
+        "surface": "#211d17",
+        "text_primary": "#f5efe2",
+        "text_secondary": "#cdc2ab",
+        "muted": "#8f846f",
+        "grid": "#332c22",
+        "axis": "#4a4132",
     },
 }
 
@@ -66,44 +81,119 @@ def _base_layout(theme: str, title: str) -> dict:
             font=dict(color=c["text_secondary"]),
         ),
         hoverlabel=dict(bgcolor=c["surface"], font=dict(family=FONT_FAMILY, color=c["text_primary"])),
-        hovermode="x unified",
+        # "closest" shows a tooltip only for the element actually under the
+        # cursor — "x unified" (the previous setting) fired for anything at
+        # that x-position even when the cursor wasn't near a mark, which
+        # read as tooltips appearing from x-axis proximity rather than from
+        # hovering the chart element itself.
+        hovermode="closest",
     )
+
+
+def _pretty_label(raw: str | None) -> str | None:
+    """Raw column names (snake_case, all-lowercase) never reach the UI as
+    axis titles or legend headers — normal capitalization only (first letter
+    up, rest lowercase), never a raw field name like 'order_count'."""
+    if not raw:
+        return raw
+    s = str(raw).replace("_", " ").strip()
+    return s[:1].upper() + s[1:].lower() if s else s
 
 
 def _style_axes(fig: go.Figure, theme: str) -> go.Figure:
     c = CHROME[theme]
     fig.update_xaxes(showgrid=False, showline=True, linecolor=c["grid"], color=c["muted"])
     fig.update_yaxes(showgrid=True, gridcolor=c["grid"], zeroline=False, color=c["muted"])
+    # Plotly express defaults axis/legend titles to the raw dataframe column
+    # name — prettify them here so every chart gets this for free rather
+    # than relying on each call site to pass a display label.
+    if fig.layout.xaxis.title.text:
+        fig.update_xaxes(title=_pretty_label(fig.layout.xaxis.title.text))
+    if fig.layout.yaxis.title.text:
+        fig.update_yaxes(title=_pretty_label(fig.layout.yaxis.title.text))
+    if fig.layout.legend.title.text:
+        fig.update_layout(legend_title_text=_pretty_label(fig.layout.legend.title.text))
     return fig
 
 
-def line_over_time(df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str) -> go.Figure:
+def line_over_time(
+    df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str,
+    value_suffix: str = "", fill: bool = False,
+) -> go.Figure:
     palette = CATEGORICAL[theme]
     fig = px.line(df, x=x, y=y, color=color, markers=True, color_discrete_sequence=palette)
     fig.update_traces(line=dict(width=2))
+    if fill and color is None:
+        fig.update_traces(fill="tozeroy", fillcolor=palette[0] + "26")
     fig.update_layout(**_base_layout(theme, title))
+    # "closest" hovermode (see _base_layout) means each series shows its own
+    # clean "Name: value" tooltip only when the cursor is actually near that
+    # line's point — no field-name prefixes, no repeated stats.
     if color is None:
         fig.update_traces(showlegend=False, line_color=palette[0])
+        fig.update_traces(hovertemplate=f"{_pretty_label(y)}: %{{y:,.0f}}{value_suffix}<extra></extra>")
+    else:
+        fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{y:,.0f}}{value_suffix}<extra></extra>")
     _style_axes(fig, theme)
     return fig
 
 
 def bar_breakdown(
-    df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str, orientation: str = "v"
+    df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str, orientation: str = "v",
+    value_suffix: str = "", color_scale: str | None = None,
 ) -> go.Figure:
+    """color_scale: None (flat sage), "sage", or "warm" — when set (and
+    color is None), each bar is tinted by its own value on that sequential
+    ramp instead of one flat color, so a ranked breakdown reads with some
+    visual life rather than as identical same-color bars."""
     palette = CATEGORICAL[theme]
-    fig = px.bar(
-        df,
-        x=x if orientation == "v" else y,
-        y=y if orientation == "v" else x,
-        color=color,
-        orientation=orientation,
-        color_discrete_sequence=palette,
-    )
+    value_axis = "x" if orientation == "h" else "y"
+    category_axis = "y" if orientation == "h" else "x"
+
+    if color_scale and color is None:
+        ramp = SEQUENTIAL_WARM[theme] if color_scale == "warm" else SEQUENTIAL[theme]
+        fig = px.bar(
+            df,
+            x=x if orientation == "v" else y,
+            y=y if orientation == "v" else x,
+            orientation=orientation,
+            color=y,
+            color_continuous_scale=ramp,
+        )
+        fig.update_coloraxes(showscale=False)
+    else:
+        fig = px.bar(
+            df,
+            x=x if orientation == "v" else y,
+            y=y if orientation == "v" else x,
+            color=color,
+            orientation=orientation,
+            color_discrete_sequence=palette,
+        )
     fig.update_traces(marker_line_width=0)
     fig.update_layout(**_base_layout(theme, title))
     if color is None:
-        fig.update_traces(showlegend=False, marker_color=palette[0])
+        fig.update_traces(showlegend=False)
+        if not color_scale:
+            fig.update_traces(marker_color=palette[0])
+        fig.update_traces(hovertemplate=f"%{{{category_axis}}}: %{{{value_axis}:,.0f}}{value_suffix}<extra></extra>")
+    else:
+        fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{{value_axis}:,.0f}}{value_suffix}<extra></extra>")
+    _style_axes(fig, theme)
+    return fig
+
+
+def stacked_area(
+    df: pd.DataFrame, x: str, y: str, color: str, title: str, theme: str, value_suffix: str = "",
+) -> go.Figure:
+    """Stacked area — smoother reading of a long time series broken into a
+    few categories than a stacked bar (used for Utilization's 100+ months
+    of billable/internal/sick hours, which read as visual noise as bars)."""
+    palette = CATEGORICAL[theme]
+    fig = px.area(df, x=x, y=y, color=color, color_discrete_sequence=palette)
+    fig.update_traces(line=dict(width=1))
+    fig.update_layout(**_base_layout(theme, title))
+    fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{y:,.0f}}{value_suffix}<extra></extra>")
     _style_axes(fig, theme)
     return fig
 
@@ -114,6 +204,7 @@ def grouped_bar_compare(df: pd.DataFrame, x: str, y: str, color: str, title: str
     fig = px.bar(df, x=x, y=y, color=color, barmode="group", color_discrete_sequence=palette)
     fig.update_traces(marker_line_width=0)
     fig.update_layout(**_base_layout(theme, title))
+    fig.update_traces(hovertemplate="%{fullData.name}: %{y:,.0f}<extra></extra>")
     _style_axes(fig, theme)
     return fig
 
@@ -192,7 +283,7 @@ def company_scatter_map(
         size="_marker_size",
         size_max=40,
         color=color_col,
-        color_continuous_scale=SEQUENTIAL_TEAL_NAVY[theme],
+        color_continuous_scale=SEQUENTIAL[theme],
         hover_name=hover_name,
         custom_data=[hover_extra, color_col, secondary_col],
     )
@@ -204,7 +295,7 @@ def company_scatter_map(
             + hover_extra.capitalize()
             + ": %{customdata[0]}<br>"
             + color_col.capitalize()
-            + ": %{customdata[1]:,.0f}<br>"
+            + ": %{customdata[1]:,.0f} kr<br>"
             + secondary_label
             + ": %{customdata[2]:,.1f}<extra></extra>"
         )
@@ -226,9 +317,11 @@ def company_scatter_map(
     return fig
 
 
-def coverage_map(df: pd.DataFrame, count_col: str, theme: str, title: str) -> go.Figure:
+def coverage_map(df: pd.DataFrame, count_col: str, theme: str, title: str, names_col: str = "company_names") -> go.Figure:
     """City-level presence/density map for the Overview landing page — a
-    coarser 'where do we operate' read, not per-company drill-down."""
+    coarser 'where do we operate' read, not per-company drill-down. Bubble
+    size/color still encode company count (magnitude), but the hover shows
+    the actual company names for that city, not just a repeat of the count."""
     c = CHROME[theme]
     fig = px.scatter_map(
         df,
@@ -236,14 +329,14 @@ def coverage_map(df: pd.DataFrame, count_col: str, theme: str, title: str) -> go
         lon="lon",
         size=count_col,
         color=count_col,
-        color_continuous_scale=SEQUENTIAL_TEAL_NAVY[theme],
+        color_continuous_scale=SEQUENTIAL[theme],
         size_max=28,
         zoom=3.6,
         center={"lat": 64.5, "lon": 13.0},
         hover_name="city",
-        custom_data=[count_col],
-        hover_data={count_col: True, "lat": False, "lon": False},
+        custom_data=[names_col],
     )
+    fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>%{customdata[0]}<extra></extra>")
     fig.update_layout(
         map_style="dark" if theme == "dark" else "light",
         paper_bgcolor=c["surface"],
