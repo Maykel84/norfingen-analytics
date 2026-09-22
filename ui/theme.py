@@ -217,10 +217,10 @@ def inject_global_css(theme: str) -> str:
     .brand {{
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 9px;
         font-family: {FONT_DISPLAY};
         font-weight: 700;
-        font-size: 15px;
+        font-size: 18px;
         color: {t['text_primary']};
         letter-spacing: -0.01em;
     }}

@@ -89,7 +89,7 @@ def nav_bar(
             # reuses colors already meaningful everywhere else in the UI
             # instead of introducing a new one just for the wordmark.
             logo_svg = f"""
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
+            <svg width="26" height="26" viewBox="0 0 18 18" fill="none"
                  xmlns="http://www.w3.org/2000/svg" class="brand-mark">
                 <rect x="1" y="10" width="4" height="7" rx="1.2" fill="{c['sage']}"/>
                 <rect x="7" y="5" width="4" height="12" rx="1.2" fill="{c['terracotta']}"/>
