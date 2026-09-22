@@ -148,6 +148,21 @@ def inject_global_css(theme: str) -> str:
     .st-key-toggle_theme div[data-testid="stButton"] > button:hover {{
         color: {t['terracotta_button']} !important;
     }}
+    /* CRITICAL fix: the plain :hover rule above (meant for the resting/
+       secondary state) ties in CSS specificity with the [kind="primary"]
+       rule above it and wins on source order — so hovering the ALREADY-
+       ACTIVE pill (which happens automatically right after clicking it,
+       since the cursor is still sitting on it) left the background at
+       terracotta_button from the primary rule while :hover repainted the
+       text to that exact same terracotta_button color: text and
+       background identical, i.e. invisible until the mouse moved away.
+       An explicit primary+hover rule (same colors as resting primary)
+       closes that gap in both themes. */
+    .st-key-toggle_lang div[data-testid="stButton"] > button[kind="primary"]:hover,
+    .st-key-toggle_theme div[data-testid="stButton"] > button[kind="primary"]:hover {{
+        background: {t['terracotta_button']} !important;
+        color: {t['on_accent']} !important;
+    }}
 
     /* Main nav row — the one card in the header, symmetric padding and
        fully rounded (it no longer visually docks under the identity strip,
@@ -173,6 +188,14 @@ def inject_global_css(theme: str) -> str:
     .st-key-app_nav div[data-testid="stButton"] > button:hover {{
         color: {t['sage']} !important;
         background: {t['sage_soft']} !important;
+    }}
+    /* Same fix as toggle_lang/toggle_theme above: without this, hovering
+       the already-active nav tab (the cursor sits on it right after the
+       click that activated it) repaints it pale-green-on-pale-green via
+       the plain :hover rule, instead of staying solid-green-on-white. */
+    .st-key-app_nav div[data-testid="stButton"] > button[kind="primary"]:hover {{
+        color: {t['on_accent']} !important;
+        background: {t['sage']} !important;
     }}
     .brand {{
         font-family: {FONT_DISPLAY};
@@ -257,6 +280,21 @@ def inject_global_css(theme: str) -> str:
         border-color: {t['sage']} !important;
         color: {t['sage']} !important;
     }}
+    /* CRITICAL fix — the actual root cause of "pill text disappears in its
+       active state": the plain :hover rule above ties in specificity with
+       the [kind="primary"] rule and wins on source order, so hovering an
+       ALREADY-ACTIVE pill (the cursor is still over it right after the
+       click that selected it) left the background sage (from the primary
+       rule, untouched by :hover) while :hover repainted the text to that
+       same sage green — identical text/background color, genuinely
+       invisible, exactly the "blank colored shape" behavior reported.
+       Restoring on_accent text (white in light mode, dark ink in dark —
+       see ui/theme.py's module docstring) on hover keeps it legible. */
+    [class*="st-key-pill_"] div[data-testid="stButton"] > button[kind="primary"]:hover {{
+        border-color: {t['sage']} !important;
+        color: {t['on_accent']} !important;
+        background: {t['sage']} !important;
+    }}
 
     /* Year dropdown — restyled BaseWeb select to match the app's controls
        rather than Streamlit's default select chrome. */
@@ -322,6 +360,13 @@ def inject_global_css(theme: str) -> str:
     [data-testid="stTabsBorder"] {{
         background-color: {t['divider']} !important;
     }}
+    /* Sub-tab panels (Operations page) render their first chart's title/
+       legend right under the tab row with only Streamlit's default 16px —
+       not enough clearance once a Plotly legend row is present above the
+       chart title, so it visually overlaps the tab labels. */
+    [data-testid="stTabPanel"] {{
+        padding-top: 36px !important;
+    }}
 
     hr {{ border-color: {t['divider']}; }}
 
@@ -348,6 +393,19 @@ def inject_global_css(theme: str) -> str:
     div[data-testid="stButton"] > button:disabled {{
         color: {t['text_muted']};
         border-color: {t['divider']};
+    }}
+
+    /* Multiselect tag row (Measures/Group by/Sector/Size, etc.) — Streamlit
+       locks this to a single fixed-height row with horizontal scroll-and-
+       truncate by default, so once more tags are selected than fit that one
+       row, some are hidden with no visual hint, making it look like fewer
+       things are selected than actually are. Letting it wrap keeps every
+       selected tag visible without opening the dropdown. */
+    [data-testid="stMultiSelectTagsContainer"] {{
+        flex-wrap: wrap !important;
+        height: auto !important;
+        overflow: visible !important;
+        row-gap: 4px;
     }}
 
     /* Widget labels (text_input/multiselect/selectbox/date_input captions

@@ -140,11 +140,23 @@ def year_switcher(years: list[int], selected: str | int, label_all: str) -> str 
     return result
 
 
-def segmented_control(options: list[tuple[str, str]], selected: str, key_prefix: str) -> str:
+def segmented_control(
+    options: list[tuple[str, str]], selected: str, key_prefix: str, state_key: str | None = None,
+) -> str:
     """options: list of (value, label). Returns selected value.
 
     Wrapped in a "pill_<key_prefix>" container — see year_switcher's
     docstring for why this scoping matters.
+
+    Pass state_key (the st.session_state key holding `selected`) to fix a
+    one-rerun lag: Streamlit draws every button's primary/secondary style
+    from `selected` BEFORE it learns which button was just clicked, so in
+    the very rerun a click changes the value, the OLD option is still the
+    one drawn highlighted — the new selection only looks right on some
+    later, unrelated rerun. Writing the new value straight into session
+    state and forcing an immediate st.rerun() here skips that stale frame
+    entirely, so the clicked pill lights up right away. Without state_key,
+    callers keep the old (laggy) assignment pattern.
     """
     result = selected
     with st.container(key=f"pill_{key_prefix}"):
@@ -154,6 +166,9 @@ def segmented_control(options: list[tuple[str, str]], selected: str, key_prefix:
                 btn_type = "primary" if value == selected else "secondary"
                 if st.button(label, key=f"{key_prefix}_{value}", use_container_width=True, type=btn_type):
                     result = value
+    if state_key and result != selected:
+        st.session_state[state_key] = result
+        st.rerun()
     return result
 
 
