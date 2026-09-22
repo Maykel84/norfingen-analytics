@@ -160,7 +160,9 @@ _GRANULARITY_TICK_FORMAT = {
 }
 
 
-def _apply_granularity_ticks(fig: go.Figure, df: pd.DataFrame, x_col: str, granularity: str | None) -> None:
+def _apply_granularity_ticks(
+    fig: go.Figure, df: pd.DataFrame, x_col: str, granularity: str | None, max_ticks: int = 10,
+) -> None:
     """Explicit tick positions/labels keyed to the query granularity, instead
     of relying on Plotly's automatic date-tick formatter. That auto-formatter
     breaks down when the x-range collapses to a single point or a very
@@ -169,13 +171,24 @@ def _apply_granularity_ticks(fig: go.Figure, df: pd.DataFrame, x_col: str, granu
     microsecond-precision tick labels like "23:59:59.999 Dec 31, 2019"
     instead of a quarter label, because it has almost no range to infer a
     sensible format from. Pinning exact ticks sidesteps that fallback
-    entirely, for one bucket or a hundred."""
+    entirely, for one bucket or a hundred.
+
+    max_ticks thins WHICH points get a printed label when there are many
+    (e.g. a client's full monthly history, 80-100+ months) — every point
+    still plots on the line, only the tick labels are sampled down to an
+    evenly-spaced subset, otherwise that many forced labels overlap into
+    an unreadable scribble rather than the microsecond-fallback bug this
+    was originally built to fix."""
     formatter = _GRANULARITY_TICK_FORMAT.get(granularity or "")
     if formatter is None or x_col not in df.columns:
         return
-    xs = pd.to_datetime(df[x_col]).drop_duplicates().sort_values()
+    xs = pd.to_datetime(df[x_col]).drop_duplicates().sort_values().reset_index(drop=True)
     if xs.empty:
         return
+    if len(xs) > max_ticks:
+        step = (len(xs) - 1) / (max_ticks - 1)
+        positions = sorted({round(i * step) for i in range(max_ticks)})
+        xs = xs.iloc[positions]
     fig.update_xaxes(tickmode="array", tickvals=xs, ticktext=[formatter(d) for d in xs])
 
 
@@ -430,7 +443,13 @@ def company_scatter_map(
         # mismatched rectangle dropped onto a cream page.
         map_style="carto-darkmatter" if theme == "dark" else "carto-positron",
         paper_bgcolor=c["surface"],
-        margin=dict(l=0, r=0, t=32, b=0),
+        # t=4, not the 32 every other chart's title band needs: every call
+        # site passes title="" for a map (labeled instead by the page's own
+        # section-label above it), so that 32px was reserved for a title
+        # that never actually renders — a bare empty cream strip on top of
+        # the map. l/r/b stay at 0 (unchanged) so the map still bleeds to
+        # its card's edges on those sides.
+        margin=dict(l=0, r=0, t=4, b=0),
         title=dict(text=title, font=dict(size=13, color=c["text_secondary"], family=FONT_FAMILY)),
         font=dict(family=FONT_FAMILY, color=c["text_secondary"]),
         coloraxis_showscale=show_colorbar,
@@ -462,7 +481,7 @@ def coverage_map(df: pd.DataFrame, count_col: str, theme: str, title: str, names
     fig.update_layout(
         map_style="carto-darkmatter" if theme == "dark" else "carto-positron",
         paper_bgcolor=c["surface"],
-        margin=dict(l=0, r=0, t=32, b=0),
+        margin=dict(l=0, r=0, t=4, b=0),
         title=dict(text=title, font=dict(size=13, color=c["text_secondary"], family=FONT_FAMILY)),
         font=dict(family=FONT_FAMILY, color=c["text_secondary"]),
         coloraxis_showscale=False,

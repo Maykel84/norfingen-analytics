@@ -127,6 +127,13 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame, date_range: tup
     map_col, history_col = st.columns([1, 2])
     with map_col:
         st.markdown(f'<div class="section-label">{t("client_map", lang)}</div>', unsafe_allow_html=True)
+        # history_col has a Month/Quarter/Year pill row between its label
+        # and its chart that this column doesn't — without an equal-height
+        # spacer here, the map's plot (same 420px height) would start
+        # higher and therefore also end higher, so the two cards look
+        # misaligned at the bottom even though neither is actually a
+        # different size.
+        st.markdown('<div style="height:56px"></div>', unsafe_allow_html=True)
         lat, lon = CITY_COORDINATES.get(row.get("city"), (None, None))
         if lat is not None:
             point_df = pd.DataFrame(
@@ -139,8 +146,11 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame, date_range: tup
                 point_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme,
                 hover_extra_label=t("city", lang), color_label=t("revenue", lang),
             )
-            with st.container(key="map_card"):
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            # Matches the History chart's height below so the two cards in
+            # this row sit at the same level instead of the map (no fixed
+            # height before) ending noticeably shorter than the chart.
+            fig.update_layout(height=420)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     with history_col:
         st.markdown(f'<div class="section-label">{t("history", lang)}</div>', unsafe_allow_html=True)
@@ -161,6 +171,7 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame, date_range: tup
                 x_title=t(st.session_state.client_period_type, lang), y_title=t("revenue", lang),
                 granularity=st.session_state.client_period_type,
             )
+            fig.update_layout(height=420)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     projects_df = get_client_projects(name)
@@ -221,8 +232,7 @@ def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
             map_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme,
             hover_extra_label=t("city", lang), color_label=t("revenue", lang),
         )
-        with st.container(key="map_card"):
-            st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
 
 
 def render(lang: str, theme: str, selected_year: int | None) -> None:
