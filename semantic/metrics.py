@@ -406,16 +406,31 @@ def get_monthly_trend_for_year(year: int | None) -> pd.DataFrame:
     return get_measure("profit", group_by=[], date_range=date_range, granularity="month")
 
 
-def get_city_density() -> pd.DataFrame:
+def get_city_density(date_range: tuple | None = None) -> pd.DataFrame:
     """Company count + the actual company names per city, for the Overview
-    coverage map (size/color = count, hover = names, not just the number)."""
-    sql = """
+    coverage map (size/color = count, hover = names, not just the number).
+
+    date_range=None (the "All years" default) counts every customer ever
+    onboarded, matching the map's original full-history behavior. A
+    (start, end) tuple restricts to customers active during that range —
+    onboarded on/before it ends and not churned before it starts — the same
+    "active in year" definition get_client_summary() uses, so the year
+    switcher means the same thing on every page that respects it.
+    """
+    where_sql, params = "", {}
+    if date_range is not None:
+        where_sql = """
+            AND (onboarding_date IS NULL OR onboarding_date <= :range_end)
+            AND (churn_date IS NULL OR churn_date >= :range_start)
+        """
+        params = {"range_start": date_range[0], "range_end": date_range[1]}
+    sql = f"""
         SELECT city, COUNT(*) AS company_count, STRING_AGG(name, ', ' ORDER BY name) AS company_names
         FROM customers
-        WHERE city IS NOT NULL
+        WHERE city IS NOT NULL {where_sql}
         GROUP BY city
     """
-    return run_query(sql)
+    return run_query(sql, params)
 
 
 def get_client_summary(filters: dict | None = None, date_range: tuple | None = None) -> pd.DataFrame:

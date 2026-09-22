@@ -1,7 +1,9 @@
+import datetime as dt
+
 import pandas as pd
 import streamlit as st
 
-from semantic.metrics import get_city_density, get_multi_year_trend, get_yearly_totals
+from semantic.metrics import get_city_density, get_monthly_trend_for_year, get_multi_year_trend, get_yearly_totals
 from ui.charts import coverage_map, line_over_time
 from ui.components import format_currency, format_pct, kpi_tile
 from ui.i18n import t
@@ -11,7 +13,13 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     """selected_year (None = all years) comes from the global year selector
     in the header, next to the brand — shared with the Operations tab so
     both respect the same "which year" filter rather than each having its
-    own control."""
+    own control. Both the History chart and the Coverage map must follow
+    it: the chart switches from the full multi-year trend to that year's
+    monthly breakdown, and the map narrows to companies active that year
+    (previously neither was wired to selected_year at all — both always
+    showed the full, unfiltered history regardless of the selector)."""
+    date_range = (dt.date(selected_year, 1, 1), dt.date(selected_year, 12, 31)) if selected_year else None
+
     with st.spinner(t("loading_data", lang)):
         totals = get_yearly_totals(selected_year)
 
@@ -32,7 +40,12 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
 
         with trend_col:
             st.markdown(f'<div class="section-label">{t("history", lang)}</div>', unsafe_allow_html=True)
-            history_df = get_multi_year_trend()
+            if selected_year is not None:
+                history_df = get_monthly_trend_for_year(selected_year)
+                chart_granularity = "month"
+            else:
+                history_df = get_multi_year_trend()
+                chart_granularity = "year"
             if not history_df.empty:
                 melted = history_df.melt(
                     id_vars=["period"], value_vars=["revenue", "cost", "profit"],
@@ -42,14 +55,14 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
                 melted[measure_col] = melted[measure_col].map(lambda m: t(m, lang))
                 fig = line_over_time(
                     melted, "period", "value", measure_col, "", theme, value_suffix=" kr",
-                    x_title=t("year", lang), y_title=t("amount", lang), granularity="year",
+                    x_title=t(chart_granularity, lang), y_title=t("amount", lang), granularity=chart_granularity,
                 )
                 fig.update_layout(height=420)
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         with map_col:
             st.markdown(f'<div class="section-label">{t("coverage", lang)}</div>', unsafe_allow_html=True)
-            density_df = get_city_density()
+            density_df = get_city_density(date_range)
             from data.geocoding import CITY_COORDINATES
 
             density_df["lat"] = density_df["city"].map(lambda c: CITY_COORDINATES.get(c, (None, None))[0])
