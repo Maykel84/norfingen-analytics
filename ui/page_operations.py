@@ -91,34 +91,45 @@ def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> Non
     # DB now logs vacation/sick/parental/welfare leave as day-markers with
     # hours always 0, which would draw as flat zero lines if mixed in here).
     #
-    # Yearly bars, not monthly area: a 100+-point monthly series of bursty
-    # data (vacation concentrated in a few months a year) reads as jagged
-    # noise in an area fill with no readable values. Yearly bars collapse
-    # that to ~8 bars per series with a clean per-bar hover value.
-    df = get_utilization_trend(granularity="year", date_range=date_range)
+    # Yearly bars by default, not monthly: a 100+-point monthly series
+    # spanning the full history (bursty data — vacation concentrated in a
+    # few months a year) reads as jagged noise with no readable values.
+    # BUT once a single year is pinned via the global selector, that's only
+    # ~12 points, not 100+ — the original crowding problem doesn't apply,
+    # and monthly bars are strictly more informative than one bar for the
+    # whole year, so switch granularity along with date_range.
+    monthly = date_range is not None
+    granularity = "month" if monthly else "year"
+    period_col = "period_label"
+    period_title = t("month" if monthly else "year", lang)
+
+    def _label_period(d: pd.DataFrame) -> pd.DataFrame:
+        d = d.sort_values("period").copy()
+        d[period_col] = d["period"].dt.strftime("%b %Y") if monthly else d["period"].dt.year
+        return d
+
+    df = get_utilization_trend(granularity=granularity, date_range=date_range)
     if not df.empty:
         label_map = {"BILLABLE": t("billable", lang), "INTERNAL": t("internal", lang)}
-        df = df.copy()
-        df["year"] = df["period"].dt.year
+        df = _label_period(df)
         df[t("activity_type", lang)] = df["activity_type"].map(lambda a: label_map.get(a, a.title()))
         fig = bar_breakdown(
-            df, "year", "hours", t("activity_type", lang), t("hours", lang), theme,
-            x_title=t("year", lang), y_title=t("hours", lang),
+            df, period_col, "hours", t("activity_type", lang), t("hours", lang), theme,
+            x_title=period_title, y_title=t("hours", lang),
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     st.write("")
     st.markdown(f'<div class="section-label">{t("absences", lang)}</div>', unsafe_allow_html=True)
-    absence_df = get_absence_trend(date_range=date_range)
+    absence_df = get_absence_trend(granularity=granularity, date_range=date_range)
     if not absence_df.empty:
-        absence_df = absence_df.copy()
-        absence_df["year"] = absence_df["period"].dt.year
+        absence_df = _label_period(absence_df)
         absence_df[t("activity_type", lang)] = absence_df["activity_type"].map(
             lambda a: t(_ABSENCE_LABELS.get(a, ""), lang) if a in _ABSENCE_LABELS else a.title()
         )
         fig_absence = bar_breakdown(
-            absence_df, "year", "days", t("activity_type", lang), t("days", lang), theme,
-            x_title=t("year", lang), y_title=t("days", lang),
+            absence_df, period_col, "days", t("activity_type", lang), t("days", lang), theme,
+            x_title=period_title, y_title=t("days", lang),
         )
         st.plotly_chart(fig_absence, use_container_width=True, config={"displayModeBar": False})
 
