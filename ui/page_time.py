@@ -5,7 +5,7 @@ import streamlit as st
 
 from semantic.metrics import get_companies, get_date_bounds, get_measure
 from semantic.schema import MEASURES
-from ui.charts import bar_breakdown, line_over_time
+from ui.charts import bar_breakdown, line_over_time, measure_color
 from ui.components import format_currency, format_delta_pct, format_int, format_pct, kpi_tile, segmented_control
 from ui.i18n import t, t_sector
 
@@ -57,22 +57,27 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     )
     granularity = PERIOD_TO_GRANULARITY[st.session_state.period_type]
 
-    filt_col1, filt_col2, filt_col3, filt_col4 = st.columns([2, 2, 2, 3])
-    with filt_col1:
+    # Two rows (Measures+Group by, then Segment+Date range) rather than all
+    # four crammed into one row — same controls, same widths relative to
+    # their row, just clearer visual grouping.
+    row1_col1, row1_col2 = st.columns([2, 2])
+    with row1_col1:
         selected_measures = st.multiselect(
             t("measures", lang), options=list(MEASURES.keys()), default=["revenue", "profit"],
             format_func=lambda k: t(k, lang), key="time_measures",
         )
-    with filt_col2:
+    with row1_col2:
         group_by = st.multiselect(
             t("group_by", lang), options=["company", "location", "segment", "nace_name"],
             default=["location"], format_func=lambda k: t(k, lang), key="time_group_by",
         )
-    with filt_col3:
+
+    row2_col1, row2_col2 = st.columns([2, 3])
+    with row2_col1:
         segment_filter = st.multiselect(
             t("segment", lang), options=sorted(companies_df["segment"].dropna().unique()), key="time_segment",
         )
-    with filt_col4:
+    with row2_col2:
         default_range = (min_date, max_date) if selected_year is not None else (
             max(min_date, max_date - dt.timedelta(days=365)), max_date
         )
@@ -114,6 +119,7 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             fig = line_over_time(
                 ts_df.sort_values("period"), "period", y_col, None, t(m, lang), theme,
                 x_title=t(granularity, lang), y_title=t(m, lang), granularity=granularity,
+                line_color=measure_color(m, theme),
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 

@@ -42,6 +42,25 @@ SEQUENTIAL_WARM = {
 
 STATUS = {"good": "#0ca30c", "warning": "#fab219", "serious": "#ec835a", "critical": "#d03b3b"}
 
+# Which CATEGORICAL slot each measure gets when a chart draws it as a lone
+# series (color=None) — without this, every single-measure chart fell back
+# to palette[0] (sage/green) regardless of which measure it was, so
+# Revenue/Profit/Orders charts all rendered as same-colored green lines,
+# visually indistinguishable from each other at a glance even though the
+# underlying numbers were genuinely different (the "measures look
+# identical" symptom traced to this, not a data bug). Matches the color
+# each measure already gets for free when several are plotted together in
+# one multi-series chart (e.g. Overview's History chart, where revenue/
+# cost/profit are melted into one line_over_time call and Plotly assigns
+# palette colors in first-appearance order: revenue=0, cost=1, profit=2).
+MEASURE_COLOR_INDEX = {"revenue": 0, "order_count": 0, "cost": 1, "profit": 2, "margin_pct": 2}
+
+
+def measure_color(measure: str, theme: str) -> str:
+    """The categorical color a single-series chart should use for this
+    measure, consistent with how it's colored when plotted alongside others."""
+    return CATEGORICAL[theme][MEASURE_COLOR_INDEX.get(measure, 0)]
+
 CHROME = {
     "light": {
         "surface": "#faf7f1",
@@ -181,24 +200,28 @@ def _stabilize_flat_yaxis(fig: go.Figure, df: pd.DataFrame, y_col: str) -> None:
 def line_over_time(
     df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str,
     value_suffix: str = "", fill: bool = False, x_title: str | None = None, y_title: str | None = None,
-    granularity: str | None = None,
+    granularity: str | None = None, line_color: str | None = None,
 ) -> go.Figure:
     """x_title/y_title: translated axis labels — pass these rather than
     relying on the raw column name (e.g. "period") ever reaching the UI.
     granularity: "day"/"week"/"month"/"quarter"/"year" — when given, pins
     explicit tick labels instead of Plotly's auto date formatter (see
-    _apply_granularity_ticks)."""
+    _apply_granularity_ticks). line_color: explicit hex for a single-series
+    chart (color=None) — pass measure_color(measure, theme) so e.g. a
+    profit chart is colored the same as profit is everywhere else, instead
+    of every lone-series chart defaulting to palette[0]."""
     palette = CATEGORICAL[theme]
+    solo_color = line_color or palette[0]
     fig = px.line(df, x=x, y=y, color=color, markers=True, color_discrete_sequence=palette)
     fig.update_traces(line=dict(width=2))
     if fill and color is None:
-        fig.update_traces(fill="tozeroy", fillcolor=palette[0] + "26")
+        fig.update_traces(fill="tozeroy", fillcolor=solo_color + "26")
     fig.update_layout(**_base_layout(theme, title))
     # "closest" hovermode (see _base_layout) means each series shows its own
     # clean "Name: value" tooltip only when the cursor is actually near that
     # line's point — no field-name prefixes, no repeated stats.
     if color is None:
-        fig.update_traces(showlegend=False, line_color=palette[0])
+        fig.update_traces(showlegend=False, line_color=solo_color)
         fig.update_traces(hovertemplate=f"{y_title or _pretty_label(y)}: %{{y:,.0f}}{value_suffix}<extra></extra>")
     else:
         fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{y:,.0f}}{value_suffix}<extra></extra>")
