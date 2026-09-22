@@ -47,7 +47,7 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
                 history_df = get_multi_year_trend()
                 chart_granularity = "year"
             if not history_df.empty:
-                melted = history_df.melt(
+                melted = history_df.sort_values("period").melt(
                     id_vars=["period"], value_vars=["revenue", "cost", "profit"],
                     var_name=t("measure_label", lang), value_name="value",
                 )
