@@ -71,7 +71,12 @@ def _base_layout(theme: str, title: str) -> dict:
         paper_bgcolor=c["surface"],
         plot_bgcolor=c["surface"],
         font=dict(family=FONT_FAMILY, color=c["text_secondary"], size=12),
-        margin=dict(l=8, r=8, t=32, b=8),
+        # t=44 (not the tighter 32 used elsewhere): this chart's own title
+        # sits inside this top margin, and when a legend is also present it
+        # renders in the same band (legend y=1.02, just above the plot
+        # area) — 32px was tight enough for the two to clip against the
+        # container's top edge on charts with both a title and a legend.
+        margin=dict(l=8, r=8, t=44, b=8),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -100,26 +105,89 @@ def _pretty_label(raw: str | None) -> str | None:
     return s[:1].upper() + s[1:].lower() if s else s
 
 
-def _style_axes(fig: go.Figure, theme: str) -> go.Figure:
+def _style_axes(fig: go.Figure, theme: str, x_title: str | None = None, y_title: str | None = None) -> go.Figure:
     c = CHROME[theme]
     fig.update_xaxes(showgrid=False, showline=True, linecolor=c["grid"], color=c["muted"])
     fig.update_yaxes(showgrid=True, gridcolor=c["grid"], zeroline=False, color=c["muted"])
-    # Plotly express defaults axis/legend titles to the raw dataframe column
-    # name — prettify them here so every chart gets this for free rather
-    # than relying on each call site to pass a display label.
-    if fig.layout.xaxis.title.text:
+    # x_title/y_title (translated, passed by the caller) always win. Falling
+    # back to a prettified raw column name only covers charts nobody has
+    # wired up a translation for yet — it capitalizes "order_count" into
+    # "Order count", which is still English, not the point of this fallback.
+    if x_title is not None:
+        fig.update_xaxes(title=x_title)
+    elif fig.layout.xaxis.title.text:
         fig.update_xaxes(title=_pretty_label(fig.layout.xaxis.title.text))
-    if fig.layout.yaxis.title.text:
+    if y_title is not None:
+        fig.update_yaxes(title=y_title)
+    elif fig.layout.yaxis.title.text:
         fig.update_yaxes(title=_pretty_label(fig.layout.yaxis.title.text))
     if fig.layout.legend.title.text:
         fig.update_layout(legend_title_text=_pretty_label(fig.layout.legend.title.text))
     return fig
 
 
+_GRANULARITY_TICK_FORMAT = {
+    "day": lambda d: d.strftime("%d %b %Y"),
+    "week": lambda d: d.strftime("%d %b %Y"),
+    "month": lambda d: d.strftime("%b %Y"),
+    "quarter": lambda d: f"Q{(d.month - 1) // 3 + 1} {d.year}",
+    "year": lambda d: d.strftime("%Y"),
+}
+
+
+def _apply_granularity_ticks(fig: go.Figure, df: pd.DataFrame, x_col: str, granularity: str | None) -> None:
+    """Explicit tick positions/labels keyed to the query granularity, instead
+    of relying on Plotly's automatic date-tick formatter. That auto-formatter
+    breaks down when the x-range collapses to a single point or a very
+    narrow span (observed after switching a chart to quarterly granularity
+    on a filtered date range with only one bucket): it falls back to
+    microsecond-precision tick labels like "23:59:59.999 Dec 31, 2019"
+    instead of a quarter label, because it has almost no range to infer a
+    sensible format from. Pinning exact ticks sidesteps that fallback
+    entirely, for one bucket or a hundred."""
+    formatter = _GRANULARITY_TICK_FORMAT.get(granularity or "")
+    if formatter is None or x_col not in df.columns:
+        return
+    xs = pd.to_datetime(df[x_col]).drop_duplicates().sort_values()
+    if xs.empty:
+        return
+    fig.update_xaxes(tickmode="array", tickvals=xs, ticktext=[formatter(d) for d in xs])
+
+
+def _stabilize_flat_yaxis(fig: go.Figure, df: pd.DataFrame, y_col: str) -> None:
+    """Plotly autoscales the y-axis tightly around the data's own min/max by
+    default — fine for genuinely volatile series, but for a near-flat one
+    (e.g. one client's monthly revenue, which barely moves month to month)
+    that zooms in so far that ordinary noise reads as a dramatic swing (an
+    axis range like 118.6975k-118.699k for values that don't meaningfully
+    vary). Below an 8% spread-to-mean threshold, anchor the range to zero
+    instead so a stable series actually reads as stable."""
+    if y_col not in df.columns:
+        return
+    values = pd.to_numeric(df[y_col], errors="coerce").dropna()
+    if values.empty:
+        return
+    y_min, y_max, y_mean = float(values.min()), float(values.max()), float(values.mean())
+    spread = y_max - y_min
+    if abs(y_mean) == 0 or spread / abs(y_mean) >= 0.08:
+        return
+    lo = min(0.0, y_min)
+    hi = max(y_max * 1.1, lo + abs(y_mean) * 0.1)
+    if hi <= lo:
+        hi = lo + 1.0
+    fig.update_yaxes(range=[lo, hi])
+
+
 def line_over_time(
     df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str,
-    value_suffix: str = "", fill: bool = False,
+    value_suffix: str = "", fill: bool = False, x_title: str | None = None, y_title: str | None = None,
+    granularity: str | None = None,
 ) -> go.Figure:
+    """x_title/y_title: translated axis labels — pass these rather than
+    relying on the raw column name (e.g. "period") ever reaching the UI.
+    granularity: "day"/"week"/"month"/"quarter"/"year" — when given, pins
+    explicit tick labels instead of Plotly's auto date formatter (see
+    _apply_granularity_ticks)."""
     palette = CATEGORICAL[theme]
     fig = px.line(df, x=x, y=y, color=color, markers=True, color_discrete_sequence=palette)
     fig.update_traces(line=dict(width=2))
@@ -131,21 +199,26 @@ def line_over_time(
     # line's point — no field-name prefixes, no repeated stats.
     if color is None:
         fig.update_traces(showlegend=False, line_color=palette[0])
-        fig.update_traces(hovertemplate=f"{_pretty_label(y)}: %{{y:,.0f}}{value_suffix}<extra></extra>")
+        fig.update_traces(hovertemplate=f"{y_title or _pretty_label(y)}: %{{y:,.0f}}{value_suffix}<extra></extra>")
     else:
         fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{y:,.0f}}{value_suffix}<extra></extra>")
-    _style_axes(fig, theme)
+    _style_axes(fig, theme, x_title=x_title, y_title=y_title)
+    _apply_granularity_ticks(fig, df, x, granularity)
+    _stabilize_flat_yaxis(fig, df, y)
     return fig
 
 
 def bar_breakdown(
     df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str, orientation: str = "v",
-    value_suffix: str = "", color_scale: str | None = None,
+    value_suffix: str = "", color_scale: str | None = None, x_title: str | None = None, y_title: str | None = None,
 ) -> go.Figure:
     """color_scale: None (flat sage), "sage", or "warm" — when set (and
     color is None), each bar is tinted by its own value on that sequential
     ramp instead of one flat color, so a ranked breakdown reads with some
-    visual life rather than as identical same-color bars."""
+    visual life rather than as identical same-color bars. x_title/y_title:
+    translated labels for the x/y params as passed (mapped onto the correct
+    physical axis below regardless of `orientation`) — pass these rather
+    than letting the raw column name reach the UI untranslated."""
     palette = list(CATEGORICAL[theme])
     value_axis = "x" if orientation == "h" else "y"
     category_axis = "y" if orientation == "h" else "x"
@@ -187,12 +260,19 @@ def bar_breakdown(
         fig.update_traces(hovertemplate=f"%{{{category_axis}}}: %{{{value_axis}:,.0f}}{value_suffix}<extra></extra>")
     else:
         fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{{value_axis}:,.0f}}{value_suffix}<extra></extra>")
-    _style_axes(fig, theme)
+    # x_title/y_title are given in terms of the x/y params as the caller
+    # passed them; map onto the axis they actually land on once orientation
+    # flips category/value between the two physical axes.
+    axes_kwargs = (
+        dict(x_title=x_title, y_title=y_title) if orientation == "v" else dict(x_title=y_title, y_title=x_title)
+    )
+    _style_axes(fig, theme, **axes_kwargs)
     return fig
 
 
 def grouped_bar_compare(
     df: pd.DataFrame, x: str, y: str, color: str, title: str, theme: str, value_suffix: str = "",
+    x_title: str | None = None, y_title: str | None = None,
 ) -> go.Figure:
     """Grouped (not stacked) bars for comparing independent totals side by
     side — e.g. client compare mode (color is entity identity) or two
@@ -203,7 +283,13 @@ def grouped_bar_compare(
     fig.update_traces(marker_line_width=0)
     fig.update_layout(**_base_layout(theme, title))
     fig.update_traces(hovertemplate=f"%{{fullData.name}}: %{{y:,.0f}}{value_suffix}<extra></extra>")
-    _style_axes(fig, theme)
+    _style_axes(fig, theme, x_title=x_title, y_title=y_title)
+    # This function is always used to compare identities (client names,
+    # amount-type labels) that are already self-explanatory from their
+    # legend entries — a legend title here is always a redundant repeat of
+    # the color column's raw name (e.g. a bare "Name" heading), never
+    # genuinely new information, so it's suppressed unconditionally.
+    fig.update_layout(legend_title_text=None)
     return fig
 
 
@@ -259,6 +345,8 @@ def company_scatter_map(
     theme: str,
     hover_name: str = "name",
     hover_extra: str = "city",
+    hover_extra_label: str | None = None,
+    color_label: str | None = None,
 ) -> go.Figure:
     """Proportionally-sized (area-proportional) point markers, sequential
     teal->navy fill, jittered so overlapping cities separate visually."""
@@ -290,9 +378,9 @@ def company_scatter_map(
     fig.update_traces(
         hovertemplate=(
             "<b>%{hovertext}</b><br>"
-            + hover_extra.capitalize()
+            + (hover_extra_label or _pretty_label(hover_extra))
             + ": %{customdata[0]}<br>"
-            + color_col.capitalize()
+            + (color_label or _pretty_label(color_col))
             + ": %{customdata[1]:,.0f} kr<br>"
             + secondary_label
             + ": %{customdata[2]:,.1f}<extra></extra>"

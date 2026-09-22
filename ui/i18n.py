@@ -18,6 +18,7 @@ TRANSLATIONS = {
     "filters": {"en": "Filters", "pl": "Filtry", "no": "Filtre"},
     "company": {"en": "Company", "pl": "Firma", "no": "Selskap"},
     "location": {"en": "Location", "pl": "Lokalizacja", "no": "Sted"},
+    "city": {"en": "City", "pl": "Miasto", "no": "By"},
     "segment": {"en": "Segment", "pl": "Segment", "no": "Segment"},
     "nace_name": {"en": "Industry", "pl": "Branża", "no": "Bransje"},
     "cost_bucket": {"en": "Cost type", "pl": "Typ kosztu", "no": "Kostnadstype"},
@@ -111,6 +112,7 @@ TRANSLATIONS = {
     "active_clients_today": {"en": "Active clients", "pl": "Aktywni klienci", "no": "Aktive kunder"},
     "todays_activity": {"en": "Today's orders", "pl": "Dzisiejsze zamówienia", "no": "Dagens ordrer"},
     "no_activity": {"en": "No orders on this day.", "pl": "Brak zamówień tego dnia.", "no": "Ingen ordrer denne dagen."},
+    "loading_data": {"en": "Loading…", "pl": "Wczytywanie…", "no": "Laster…"},
     "recent_activity": {"en": "Recent activity", "pl": "Ostatnia aktywność", "no": "Nylig aktivitet"},
     "last_n_days": {"en": "Last {n} days", "pl": "Ostatnie {n} dni", "no": "Siste {n} dager"},
     "invoice_payment_status": {
@@ -178,8 +180,100 @@ TRANSLATIONS = {
 }
 
 
+# customers.nace_name is stored in Norwegian (the source data's own
+# language) regardless of UI language — every distinct value present in the
+# DB (confirmed via `SELECT DISTINCT nace_name FROM customers`, 18 values,
+# not guessed at). NO keeps the original text since it's already Norwegian.
+SECTOR_TRANSLATIONS = {
+    "Andre helsetjenester": {
+        "en": "Other health services", "pl": "Inne usługi zdrowotne", "no": "Andre helsetjenester",
+    },
+    "Andre tjenester tilknyttet informasjonsteknologi": {
+        "en": "Other information technology services",
+        "pl": "Inne usługi związane z technologią informacyjną",
+        "no": "Andre tjenester tilknyttet informasjonsteknologi",
+    },
+    "Annen butikkhandel med bredt vareutvalg": {
+        "en": "Other retail sale in non-specialized stores",
+        "pl": "Pozostała sprzedaż detaliczna w sklepach niewyspecjalizowanych",
+        "no": "Annen butikkhandel med bredt vareutvalg",
+    },
+    "Bankvirksomhet ellers": {
+        "en": "Other banking activities", "pl": "Pozostała działalność bankowa", "no": "Bankvirksomhet ellers",
+    },
+    "Bearbeiding og konservering av fisk, skalldyr og bløtdyr": {
+        "en": "Processing and preserving of fish, crustaceans and molluscs",
+        "pl": "Przetwarzanie i konserwowanie ryb, skorupiaków i mięczaków",
+        "no": "Bearbeiding og konservering av fisk, skalldyr og bløtdyr",
+    },
+    "Bedriftsrådgivning og annen administrativ rådgivning": {
+        "en": "Business and other management consultancy",
+        "pl": "Doradztwo biznesowe i pozostałe doradztwo administracyjne",
+        "no": "Bedriftsrådgivning og annen administrativ rådgivning",
+    },
+    "Elektrisk installasjonsarbeid": {
+        "en": "Electrical installation work",
+        "pl": "Roboty związane z wykonywaniem instalacji elektrycznych",
+        "no": "Elektrisk installasjonsarbeid",
+    },
+    "Godstransport på vei": {
+        "en": "Freight transport by road", "pl": "Transport drogowy towarów", "no": "Godstransport på vei",
+    },
+    "Handel med elektrisitet": {
+        "en": "Trade of electricity", "pl": "Handel energią elektryczną", "no": "Handel med elektrisitet",
+    },
+    "Havbruk av fisk i sjøvann": {
+        "en": "Marine fish farming", "pl": "Hodowla ryb morskich", "no": "Havbruk av fisk i sjøvann",
+    },
+    "Hovedkontortjenester": {
+        "en": "Head office activities", "pl": "Działalność centrali firm", "no": "Hovedkontortjenester",
+    },
+    "Juridisk tjenesteyting": {
+        "en": "Legal services", "pl": "Usługi prawne", "no": "Juridisk tjenesteyting",
+    },
+    "Kjøp og salg av egen fast eiendom": {
+        "en": "Buying and selling of own real estate",
+        "pl": "Kupno i sprzedaż nieruchomości na własny rachunek",
+        "no": "Kjøp og salg av egen fast eiendom",
+    },
+    "Oppføring av bygninger": {
+        "en": "Construction of buildings", "pl": "Wznoszenie budynków", "no": "Oppføring av bygninger",
+    },
+    "Produksjon av metallkonstruksjoner": {
+        "en": "Manufacture of structural metal products",
+        "pl": "Produkcja konstrukcji metalowych",
+        "no": "Produksjon av metallkonstruksjoner",
+    },
+    "Sjøtransport med gods": {
+        "en": "Sea freight transport", "pl": "Transport morski towarów", "no": "Sjøtransport med gods",
+    },
+    "Spesialisert designvirksomhet": {
+        "en": "Specialized design activities",
+        "pl": "Działalność w zakresie specjalistycznego projektowania",
+        "no": "Spesialisert designvirksomhet",
+    },
+    "Vedlikehold og reparasjon av motorvogner": {
+        "en": "Maintenance and repair of motor vehicles",
+        "pl": "Konserwacja i naprawa pojazdów samochodowych",
+        "no": "Vedlikehold og reparasjon av motorvogner",
+    },
+}
+
+
 def t(key: str, lang: str) -> str:
     entry = TRANSLATIONS.get(key)
     if not entry:
         return key
     return entry.get(lang, entry.get("en", key))
+
+
+def t_sector(nace_name: str | None, lang: str) -> str:
+    """Translates a customers.nace_name value (stored in Norwegian) for
+    display. Falls back to the raw value for anything not in
+    SECTOR_TRANSLATIONS (e.g. null/unexpected data) rather than hiding it."""
+    if not nace_name:
+        return nace_name
+    entry = SECTOR_TRANSLATIONS.get(nace_name)
+    if not entry:
+        return nace_name
+    return entry.get(lang, nace_name)
