@@ -215,11 +215,17 @@ def inject_global_css(theme: str) -> str:
         color: {t['on_accent']} !important;
     }}
     .brand {{
+        display: flex;
+        align-items: center;
+        gap: 8px;
         font-family: {FONT_DISPLAY};
         font-weight: 700;
-        font-size: 14px;
+        font-size: 15px;
         color: {t['text_primary']};
         letter-spacing: -0.01em;
+    }}
+    .brand-mark {{
+        flex-shrink: 0;
     }}
 
     /* KPI tiles — soft rounded card with a gentle shadow, not a hard left

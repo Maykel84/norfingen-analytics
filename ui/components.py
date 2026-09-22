@@ -81,7 +81,25 @@ def nav_bar(
         else:
             left, mid, right = st.columns([4, 2, 2])
         with left:
-            st.markdown(f'<div class="brand">◆ {t_func("app_title", lang)}</div>', unsafe_allow_html=True)
+            c = tokens(theme)
+            # Three ascending bars in the exact chart-categorical palette
+            # (sage/terracotta/slate, ui/charts.py's CATEGORICAL) rather
+            # than a generic "◆" bullet — a small, literal nod to what the
+            # product actually does (an analytics/reporting app), and it
+            # reuses colors already meaningful everywhere else in the UI
+            # instead of introducing a new one just for the wordmark.
+            logo_svg = f"""
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
+                 xmlns="http://www.w3.org/2000/svg" class="brand-mark">
+                <rect x="1" y="10" width="4" height="7" rx="1.2" fill="{c['sage']}"/>
+                <rect x="7" y="5" width="4" height="12" rx="1.2" fill="{c['terracotta']}"/>
+                <rect x="13" y="0" width="4" height="17" rx="1.2" fill="{c['slate']}"/>
+            </svg>
+            """
+            st.markdown(
+                f'<div class="brand">{logo_svg}<span>{t_func("app_title", lang)}</span></div>',
+                unsafe_allow_html=True,
+            )
         if show_year:
             with year_col:
                 with st.container(key="select_years"):

@@ -90,16 +90,22 @@ def _base_layout(theme: str, title: str) -> dict:
         paper_bgcolor=c["surface"],
         plot_bgcolor=c["surface"],
         font=dict(family=FONT_FAMILY, color=c["text_secondary"], size=12),
-        # t=44 (not the tighter 32 used elsewhere): this chart's own title
-        # sits inside this top margin, and when a legend is also present it
-        # renders in the same band (legend y=1.02, just above the plot
-        # area) — 32px was tight enough for the two to clip against the
-        # container's top edge on charts with both a title and a legend.
-        margin=dict(l=8, r=8, t=44, b=8),
+        # Legend lives BELOW the plot (b=64 makes room), not stacked above
+        # it alongside the title. Above-the-plot positioning (both title
+        # and legend competing for the same narrow band via paper-fraction
+        # y values) was fragile: the exact pixel gap needed between them
+        # depends on the rendered figure height, which varies per chart
+        # (some set an explicit height, most don't) — measured live, a
+        # legend with its own title (e.g. "Typ zatrudnienia") wrapped onto
+        # two lines and land almost exactly on top of the chart title
+        # itself, both illegible, no matter how the y fractions were
+        # tuned. Below the plot, the legend can't collide with the title
+        # regardless of how many lines it wraps to or how tall the figure is.
+        margin=dict(l=8, r=8, t=32, b=64),
         legend=dict(
             orientation="h",
-            yanchor="bottom",
-            y=1.02,
+            yanchor="top",
+            y=-0.22,
             xanchor="left",
             x=0,
             font=dict(color=c["text_secondary"]),

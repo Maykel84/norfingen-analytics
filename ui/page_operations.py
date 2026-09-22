@@ -18,7 +18,7 @@ from semantic.metrics import (
 )
 from ui.charts import bar_breakdown, grouped_bar_compare, line_over_time
 from ui.components import format_currency, format_int
-from ui.i18n import t
+from ui.i18n import t, t_account, t_department, t_employment_type
 
 
 def _year_to_range(year: int | None) -> tuple | None:
@@ -72,6 +72,9 @@ def _staffing_section(lang: str, theme: str) -> None:
     df = get_staffing_summary()
     if df.empty:
         return
+    df = df.copy()
+    df["department"] = df["department"].map(lambda d: t_department(d, lang))
+    df["employment_type"] = df["employment_type"].map(lambda e: t_employment_type(e, lang))
     df = df.rename(columns={"employment_type": t("employment_type", lang)})
     fig = bar_breakdown(
         df, "department", "headcount", t("employment_type", lang), t("headcount", lang), theme, value_suffix="",
@@ -144,6 +147,7 @@ def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> Non
     if dept_df.empty:
         return
     dept_df = dept_df.copy()
+    dept_df["department"] = dept_df["department"].map(lambda d: t_department(d, lang))
     dept_df[t("activity_type", lang)] = dept_df["activity_type"].map(
         lambda a: t(_ABSENCE_LABELS.get(a, ""), lang) if a in _ABSENCE_LABELS else a.title()
     )
@@ -158,6 +162,8 @@ def _cost_by_account_section(lang: str, theme: str, date_range: tuple | None) ->
     df = get_cost_by_account(date_range)
     if df.empty:
         return
+    df = df.copy()
+    df["account"] = df["account"].map(lambda a: t_account(a, lang))
     fig = bar_breakdown(
         df.head(12), "account", "cost", None, t("cost", lang), theme,
         orientation="h", value_suffix=" kr", color_scale="warm",
@@ -187,6 +193,7 @@ def _payroll_section(lang: str, theme: str, date_range: tuple | None) -> None:
     latest["yoy_growth_pct"] = latest["yoy_growth_pct"].map(
         lambda v: f"{v:+.1f}%" if pd.notna(v) else "—"
     )
+    latest["department"] = latest["department"].map(lambda d: t_department(d, lang))
     table = latest.rename(
         columns={
             "employee": t("employee", lang), "department": t("department", lang),

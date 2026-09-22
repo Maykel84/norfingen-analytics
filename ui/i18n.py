@@ -265,6 +265,89 @@ SECTOR_TRANSLATIONS = {
 }
 
 
+# departments.name — 4 distinct values in the DB (confirmed via
+# `SELECT DISTINCT name FROM departments`), each a Norwegian business-
+# function name, not a proper noun (unlike company names), so translating
+# them is meaningful. NO keeps the original since it's already Norwegian.
+DEPARTMENT_TRANSLATIONS = {
+    "Leveranse": {"en": "Delivery", "pl": "Realizacja", "no": "Leveranse"},
+    "Økonomi": {"en": "Finance", "pl": "Finanse", "no": "Økonomi"},
+    "Salg": {"en": "Sales", "pl": "Sprzedaż", "no": "Salg"},
+    "Teknologi": {"en": "Technology", "pl": "Technologia", "no": "Teknologi"},
+}
+
+# accounts.name for every account in the cost range (4000-7999) actually
+# posted to (confirmed via a live DISTINCT query against postings JOIN
+# accounts, not guessed at) — 17 values, Norwegian GL account names.
+ACCOUNT_TRANSLATIONS = {
+    "Annen driftskostnad": {
+        "en": "Other operating expense", "pl": "Inne koszty operacyjne", "no": "Annen driftskostnad",
+    },
+    "Arbeidsgiveravgift": {
+        "en": "Employer's National Insurance contribution",
+        "pl": "Składka na ubezpieczenie społeczne pracodawcy",
+        "no": "Arbeidsgiveravgift",
+    },
+    "Avsetning feriepenger": {
+        "en": "Holiday pay accrual", "pl": "Rezerwa na wynagrodzenie urlopowe", "no": "Avsetning feriepenger",
+    },
+    "Driftskostnad Managed IT Support (RMM/EDR/verktøy)": {
+        "en": "Managed IT Support operating cost (RMM/EDR/tools)",
+        "pl": "Koszt operacyjny Managed IT Support (RMM/EDR/narzędzia)",
+        "no": "Driftskostnad Managed IT Support (RMM/EDR/verktøy)",
+    },
+    "Driftsmateriell for kundeleveranse": {
+        "en": "Operating supplies for client delivery",
+        "pl": "Materiały eksploatacyjne do realizacji usług dla klientów",
+        "no": "Driftsmateriell for kundeleveranse",
+    },
+    "Forsikringspremier": {
+        "en": "Insurance premiums", "pl": "Składki ubezpieczeniowe", "no": "Forsikringspremier",
+    },
+    "Fremmed tjeneste": {
+        "en": "Purchased services", "pl": "Usługi obce", "no": "Fremmed tjeneste",
+    },
+    "Husleie og leie av lokaler": {
+        "en": "Rent and premises lease", "pl": "Czynsz i wynajem lokali", "no": "Husleie og leie av lokaler",
+    },
+    "Inventar og utstyr": {
+        "en": "Furniture and equipment", "pl": "Wyposażenie i sprzęt", "no": "Inventar og utstyr",
+    },
+    "Kantinetilskudd": {
+        "en": "Canteen subsidy", "pl": "Dofinansowanie stołówki", "no": "Kantinetilskudd",
+    },
+    "Kontorkostnader": {
+        "en": "Office expenses", "pl": "Koszty biurowe", "no": "Kontorkostnader",
+    },
+    "Lisenser og programvare": {
+        "en": "Licenses and software", "pl": "Licencje i oprogramowanie", "no": "Lisenser og programvare",
+    },
+    "Lønn, fast": {
+        "en": "Fixed salary", "pl": "Wynagrodzenie stałe", "no": "Lønn, fast",
+    },
+    "Reisekostnader": {
+        "en": "Travel expenses", "pl": "Koszty podróży", "no": "Reisekostnader",
+    },
+    "Representasjon": {
+        "en": "Business entertainment", "pl": "Reprezentacja", "no": "Representasjon",
+    },
+    "Telefon og internett": {
+        "en": "Telephone and internet", "pl": "Telefon i internet", "no": "Telefon og internett",
+    },
+    "Videresalgskostnad Microsoft/Azure": {
+        "en": "Microsoft/Azure resale cost", "pl": "Koszt odsprzedaży Microsoft/Azure",
+        "no": "Videresalgskostnad Microsoft/Azure",
+    },
+}
+
+# employments.employment_type — only one distinct value in the DB
+# ("ORDINARY", confirmed via a live query), but it's a raw enum, not a
+# label, so it was rendering untranslated in every language.
+EMPLOYMENT_TYPE_TRANSLATIONS = {
+    "ORDINARY": {"en": "Ordinary", "pl": "Standardowe", "no": "Ordinær"},
+}
+
+
 def t(key: str, lang: str) -> str:
     entry = TRANSLATIONS.get(key)
     if not entry:
@@ -272,13 +355,35 @@ def t(key: str, lang: str) -> str:
     return entry.get(lang, entry.get("en", key))
 
 
+def _translate_via(table: dict, value: str | None, lang: str) -> str | None:
+    if not value:
+        return value
+    entry = table.get(value)
+    if not entry:
+        return value
+    return entry.get(lang, value)
+
+
 def t_sector(nace_name: str | None, lang: str) -> str:
     """Translates a customers.nace_name value (stored in Norwegian) for
     display. Falls back to the raw value for anything not in
     SECTOR_TRANSLATIONS (e.g. null/unexpected data) rather than hiding it."""
-    if not nace_name:
-        return nace_name
-    entry = SECTOR_TRANSLATIONS.get(nace_name)
-    if not entry:
-        return nace_name
-    return entry.get(lang, nace_name)
+    return _translate_via(SECTOR_TRANSLATIONS, nace_name, lang)
+
+
+def t_department(name: str | None, lang: str) -> str:
+    """Translates a departments.name value. Falls back to the raw value for
+    anything not in DEPARTMENT_TRANSLATIONS."""
+    return _translate_via(DEPARTMENT_TRANSLATIONS, name, lang)
+
+
+def t_account(name: str | None, lang: str) -> str:
+    """Translates an accounts.name (GL account) value. Falls back to the
+    raw value for anything not in ACCOUNT_TRANSLATIONS."""
+    return _translate_via(ACCOUNT_TRANSLATIONS, name, lang)
+
+
+def t_employment_type(value: str | None, lang: str) -> str:
+    """Translates an employments.employment_type raw enum value. Falls back
+    to the raw value for anything not in EMPLOYMENT_TYPE_TRANSLATIONS."""
+    return _translate_via(EMPLOYMENT_TYPE_TRANSLATIONS, value, lang)
