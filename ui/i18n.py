@@ -113,6 +113,11 @@ TRANSLATIONS = {
     "todays_activity": {"en": "Today's orders", "pl": "Dzisiejsze zamówienia", "no": "Dagens ordrer"},
     "no_activity": {"en": "No orders on this day.", "pl": "Brak zamówień tego dnia.", "no": "Ingen ordrer denne dagen."},
     "loading_data": {"en": "Loading…", "pl": "Wczytywanie…", "no": "Laster…"},
+    "app_starting": {
+        "en": "Starting up — first load after inactivity can take up to a minute…",
+        "pl": "Uruchamianie — pierwsze wczytanie po okresie nieaktywności może potrwać do minuty…",
+        "no": "Starter opp — første innlasting etter inaktivitet kan ta opptil et minutt…",
+    },
     "recent_activity": {"en": "Recent activity", "pl": "Ostatnia aktywność", "no": "Nylig aktivitet"},
     "last_n_days": {"en": "Last {n} days", "pl": "Ostatnie {n} dni", "no": "Siste {n} dager"},
     "invoice_payment_status": {

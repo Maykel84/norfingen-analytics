@@ -20,7 +20,14 @@ if "global_year" not in st.session_state:
 
 st.markdown(inject_global_css(st.session_state.theme), unsafe_allow_html=True)
 
-years = get_available_years()
+# Streamlit Community Cloud's free tier sleeps an unused app; the first
+# visitor after that has to wait for the container to wake (tens of
+# seconds) on top of a cold st.cache_data/engine — nothing in app code can
+# shorten that, but showing a spinner immediately (before the first query
+# even runs) means the wait reads as "loading" rather than a blank page
+# that looks broken.
+with st.spinner(t("app_starting", st.session_state.lang)):
+    years = get_available_years()
 new_active, new_lang, new_theme, new_year = nav_bar(
     st.session_state.active_page, st.session_state.lang, st.session_state.theme, t,
     years=years, selected_year=st.session_state.global_year,
