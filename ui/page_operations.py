@@ -252,37 +252,59 @@ def _lifecycle_section(lang: str, theme: str, date_range: tuple | None) -> None:
     st.dataframe(table, use_container_width=True, hide_index=True)
 
 
+_SECTION_KEYS = [
+    "products", "suppliers", "staffing", "utilization",
+    "cost_by_account", "payroll", "cash_flow", "lifecycle",
+]
+_SECTION_LABEL_KEYS = {
+    "products": "products_services", "suppliers": "suppliers", "staffing": "staffing",
+    "utilization": "utilization", "cost_by_account": "cost_by_account", "payroll": "payroll",
+    "cash_flow": "cash_flow", "lifecycle": "lifecycle_events",
+}
+
+
 def render(lang: str, theme: str, selected_year: int | None) -> None:
     """selected_year (None = all years) comes from the global year selector
     in the header — every section here respects it (staffing is current-
-    headcount only, so it's the one exception with no time dimension)."""
+    headcount only, so it's the one exception with no time dimension).
+
+    Uses a session_state-backed st.radio for the sub-section picker instead
+    of st.tabs(): Streamlit runs the Python body of every st.tabs() panel on
+    every rerun regardless of which one is visually active (only CSS hides
+    the rest), so all 8 sections' queries fired on every single interaction
+    — profiling measured ~2.5s of that, ~2.1s of it pure DB round-trip time
+    for sections the user wasn't even looking at. A radio's selected value
+    is known before any section code runs, so only the one actually being
+    viewed executes.
+    """
     date_range = _year_to_range(selected_year)
 
-    tabs = st.tabs(
-        [
-            t("products_services", lang), t("suppliers", lang), t("staffing", lang),
-            t("utilization", lang), t("cost_by_account", lang), t("payroll", lang),
-            t("cash_flow", lang), t("lifecycle_events", lang),
-        ]
-    )
-    # Streamlit renders every tab panel's body on each rerun (only the
-    # inactive ones are hidden with CSS) — one spinner around the whole set
-    # covers the actual query/chart-building delay regardless of which sub-
-    # tab the user is looking at.
+    if "operations_section" not in st.session_state:
+        st.session_state.operations_section = _SECTION_KEYS[0]
+
+    with st.container(key="pill_operations_section"):
+        st.radio(
+            "operations_section_picker", options=_SECTION_KEYS,
+            format_func=lambda k: t(_SECTION_LABEL_KEYS[k], lang),
+            horizontal=True, key="operations_section", label_visibility="collapsed",
+        )
+    selected = st.session_state.operations_section
+
+    st.write("")
     with st.spinner(t("loading_data", lang)):
-        with tabs[0]:
+        if selected == "products":
             _products_section(lang, theme, date_range)
-        with tabs[1]:
+        elif selected == "suppliers":
             _suppliers_section(lang, theme, date_range)
-        with tabs[2]:
+        elif selected == "staffing":
             _staffing_section(lang, theme)
-        with tabs[3]:
+        elif selected == "utilization":
             _utilization_section(lang, theme, date_range)
-        with tabs[4]:
+        elif selected == "cost_by_account":
             _cost_by_account_section(lang, theme, date_range)
-        with tabs[5]:
+        elif selected == "payroll":
             _payroll_section(lang, theme, date_range)
-        with tabs[6]:
+        elif selected == "cash_flow":
             _cash_flow_section(lang, theme, date_range)
-        with tabs[7]:
+        elif selected == "lifecycle":
             _lifecycle_section(lang, theme, date_range)

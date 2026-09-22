@@ -340,32 +340,46 @@ def inject_global_css(theme: str) -> str:
         margin-right: 6px;
     }}
 
-    /* st.tabs (Operations page sub-sections) — Streamlit's own tab widget
-       defaults to a resting-state text color baked in from config.toml's
-       (light-locked) textColor, which is unreadable on our warm-dark
-       surface in dark mode (a real contrast bug caught in testing, not a
-       hypothetical). This Streamlit version renders tabs as
-       [data-testid="stTab"], not the older [data-baseweb="tab"] — verified
-       via computed-style inspection, not assumed. */
-    [data-testid="stTab"] p {{
+    /* Operations sub-section picker — st.radio(horizontal=True) restyled as
+       a pill row (replaces the old st.tabs(), which ran every panel's query
+       code on every rerun regardless of which tab was visible; a radio's
+       value is known before any section renders, so only the selected one
+       runs). Same resting/selected treatment as the pill_ button controls
+       elsewhere, reusing the same tokens for visual consistency, wrapped in
+       flex-wrap so 8 labels degrade to multiple rows instead of a cramped
+       single line. */
+    .st-key-pill_operations_section [data-testid="stRadio"] label[data-testid="stWidgetLabel"] {{
+        display: none;
+    }}
+    .st-key-pill_operations_section [data-testid="stRadioGroup"] {{
+        flex-wrap: wrap;
+        gap: 8px;
+        row-gap: 8px;
+    }}
+    .st-key-pill_operations_section [data-testid="stRadioOption"] {{
+        border-radius: 999px !important;
+        border: 1px solid {t['border']} !important;
+        background: {t['panel']} !important;
+        padding: 6px 16px !important;
+        margin: 0 !important;
+    }}
+    /* The circle indicator is the first of two children inside the
+       option's content div (second is the label text) — hidden in favor
+       of the pill's own background/border carrying the selected state. */
+    .st-key-pill_operations_section [data-testid="stRadioOption"] > div > div:first-child {{
+        display: none;
+    }}
+    .st-key-pill_operations_section [data-testid="stRadioOption"] p {{
         color: {t['text_secondary']} !important;
         font-weight: 600 !important;
+        font-size: 13px !important;
     }}
-    [data-testid="stTab"][aria-selected="true"] p {{
-        color: {t['sage']} !important;
+    .st-key-pill_operations_section [data-testid="stRadioOption"][data-selected="true"] {{
+        background: {t['sage']} !important;
+        border-color: {t['sage']} !important;
     }}
-    [data-testid="stTabsHighlight"] {{
-        background-color: {t['sage']} !important;
-    }}
-    [data-testid="stTabsBorder"] {{
-        background-color: {t['divider']} !important;
-    }}
-    /* Sub-tab panels (Operations page) render their first chart's title/
-       legend right under the tab row with only Streamlit's default 16px —
-       not enough clearance once a Plotly legend row is present above the
-       chart title, so it visually overlaps the tab labels. */
-    [data-testid="stTabPanel"] {{
-        padding-top: 36px !important;
+    .st-key-pill_operations_section [data-testid="stRadioOption"][data-selected="true"] p {{
+        color: {t['on_accent']} !important;
     }}
 
     hr {{ border-color: {t['divider']}; }}
