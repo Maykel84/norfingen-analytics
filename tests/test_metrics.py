@@ -23,19 +23,22 @@ def _fake_revenue_df():
     )
 
 
-def _fake_cost_df():
+def _fake_combined_df():
+    """What _fetch_revenue_cost_combined returns: revenue + cost already in
+    one frame (the SQL-side FULL OUTER JOIN + COALESCE), before get_measure
+    adds profit/margin_pct."""
     return pd.DataFrame(
         {
             "period": pd.to_datetime(["2026-01-01", "2026-02-01"]),
+            "revenue": [1000.0, 2000.0],
+            "order_count": [3, 5],
             "cost": [400.0, 500.0],
         }
     )
 
 
 def test_profit_equals_revenue_minus_cost():
-    with patch.object(metrics, "_fetch_revenue", return_value=_fake_revenue_df()), patch.object(
-        metrics, "_fetch_cost", return_value=_fake_cost_df()
-    ):
+    with patch.object(metrics, "_fetch_revenue_cost_combined", return_value=_fake_combined_df()):
         df = metrics.get_measure(
             "profit",
             group_by=[],
@@ -47,9 +50,7 @@ def test_profit_equals_revenue_minus_cost():
 
 
 def test_margin_pct_matches_profit_over_revenue():
-    with patch.object(metrics, "_fetch_revenue", return_value=_fake_revenue_df()), patch.object(
-        metrics, "_fetch_cost", return_value=_fake_cost_df()
-    ):
+    with patch.object(metrics, "_fetch_revenue_cost_combined", return_value=_fake_combined_df()):
         df = metrics.get_measure(
             "margin_pct",
             group_by=[],
@@ -62,11 +63,8 @@ def test_margin_pct_matches_profit_over_revenue():
 
 
 def test_totals_roll_up_across_periods_when_ungrouped():
-    with patch.object(metrics, "_fetch_revenue") as mock_rev, patch.object(
-        metrics, "_fetch_cost"
-    ) as mock_cost:
-        mock_rev.return_value = pd.DataFrame({"revenue": [1000.0], "order_count": [8]})
-        mock_cost.return_value = pd.DataFrame({"cost": [900.0]})
+    with patch.object(metrics, "_fetch_revenue_cost_combined") as mock_combined:
+        mock_combined.return_value = pd.DataFrame({"revenue": [1000.0], "order_count": [8], "cost": [900.0]})
         df = metrics.get_measure("profit", group_by=[], granularity=None)
     assert df["revenue"].iloc[0] == 1000.0
     assert df["cost"].iloc[0] == 900.0
@@ -75,22 +73,26 @@ def test_totals_roll_up_across_periods_when_ungrouped():
 
 
 def test_revenue_measure_passthrough():
+    """measure="revenue" only calls _fetch_revenue — not _fetch_cost or the
+    combined revenue+cost fetch — since it never needs cost at all."""
     with patch.object(metrics, "_fetch_revenue", return_value=_fake_revenue_df()), patch.object(
-        metrics, "_fetch_cost", return_value=_fake_cost_df()
-    ):
+        metrics, "_fetch_cost"
+    ) as mock_cost, patch.object(metrics, "_fetch_revenue_cost_combined") as mock_combined:
         df = metrics.get_measure("revenue", group_by=[], granularity="month")
     assert df["revenue"].sum() == 3000.0
+    mock_cost.assert_not_called()
+    mock_combined.assert_not_called()
 
 
 def test_whole_company_cost_and_profit_totals_are_unaffected():
     """Cost postings never carry a customer_id, but that only blocks
     per-client attribution — the whole-company (no group_by) total must
     still aggregate the full, correct cost figure."""
-    with patch.object(metrics, "_fetch_revenue") as mock_rev, patch.object(
-        metrics, "_fetch_cost"
-    ) as mock_cost:
-        mock_rev.return_value = pd.DataFrame({"revenue": [5000.0], "order_count": [12]})
+    with patch.object(metrics, "_fetch_cost") as mock_cost, patch.object(
+        metrics, "_fetch_revenue_cost_combined"
+    ) as mock_combined:
         mock_cost.return_value = pd.DataFrame({"cost": [3200.0]})
+        mock_combined.return_value = pd.DataFrame({"revenue": [5000.0], "order_count": [12], "cost": [3200.0]})
 
         cost_df = metrics.get_measure("cost", group_by=[], granularity=None)
         profit_df = metrics.get_measure("profit", group_by=[], granularity=None)

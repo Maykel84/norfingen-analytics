@@ -201,6 +201,105 @@ def _fetch_cost(
     return df
 
 
+def _fetch_revenue_cost_combined(
+    group_by: list[str],
+    granularity: str | None,
+    date_range: tuple | None,
+    filters: dict | None,
+    company_scoped: bool,
+) -> pd.DataFrame:
+    """revenue + cost in one round trip (two CTEs, FULL OUTER JOINed in
+    Postgres) instead of two separate queries + a pandas outer-merge —
+    profiling showed each round trip to the Supabase pooler costs a flat
+    ~180-210ms regardless of query shape, so profit/margin_pct (which
+    always needed both) was paying that twice on every request.
+
+    Only dims valid on the revenue side (company/location/segment/
+    nace_name) can be a join key — cost_bucket has no revenue-side
+    counterpart. That matches the old two-query path exactly: its
+    pd.merge used `[k for k in join_keys if k in revenue_df.columns and
+    k in cost_df.columns]`, which silently dropped cost_bucket the same
+    way for the same reason (never present in revenue_df).
+    """
+    dims = [d for d in group_by if d in _REVENUE_DIM_COLUMNS]
+
+    revenue_select = [f"{_REVENUE_DIM_COLUMNS[d]} AS {d}" for d in dims]
+    revenue_group = [_REVENUE_DIM_COLUMNS[d] for d in dims]
+    period_rev = _period_expr(granularity, "o.order_date")
+    if period_rev:
+        revenue_select.insert(0, f"{period_rev} AS period")
+        revenue_group.insert(0, period_rev)
+    revenue_select.append("SUM(ol.amount_excluding_vat_currency) AS revenue")
+    revenue_select.append("COUNT(DISTINCT o.id) AS order_count")
+    rev_where_sql, rev_where_params = _date_range_clause(date_range, "o.order_date")
+    rev_filt_sql, rev_filt_params = _build_filters(filters, _REVENUE_DIM_COLUMNS)
+    revenue_group_clause = f"GROUP BY {', '.join(revenue_group)}" if revenue_group else ""
+
+    cost_select = [f"{_COST_DIM_COLUMNS[d]} AS {d}" for d in dims]
+    cost_group = [_COST_DIM_COLUMNS[d] for d in dims]
+    period_cost = _period_expr(granularity, "v.date")
+    if period_cost:
+        cost_select.insert(0, f"{period_cost} AS period")
+        cost_group.insert(0, period_cost)
+    cost_select.append("SUM(p.amount) AS cost")
+
+    company_filter_keys = ("company", "location", "segment", "nace_name")
+    has_company_filters = bool(filters) and any(filters.get(k) for k in company_filter_keys)
+    needs_customer_join = company_scoped or any(d in company_filter_keys for d in dims) or has_company_filters
+    cost_join_clause = "LEFT JOIN customers c ON c.id = p.customer_id" if needs_customer_join else ""
+    customer_required = " AND p.customer_id IS NOT NULL" if needs_customer_join else ""
+
+    cost_where_sql, cost_where_params = _date_range_clause(date_range, "v.date")
+    cost_filt_sql, cost_filt_params = _build_filters(filters, _COST_DIM_COLUMNS)
+    cost_group_clause = f"GROUP BY {', '.join(cost_group)}" if cost_group else ""
+
+    # Plain "=" (not IS NOT DISTINCT FROM): Postgres only allows a FULL JOIN
+    # on hash/merge-joinable conditions, which IS NOT DISTINCT FROM isn't
+    # ("FULL JOIN is only supported with merge-joinable or hash-joinable
+    # join conditions" — a real error hit while building this, not a
+    # hypothetical). "=" also matches the old pandas pd.merge(how="outer")
+    # behavior exactly: pandas doesn't match NaN-to-NaN on a merge key
+    # either, so a NULL dim value (e.g. a customer with no city) wasn't
+    # joining across revenue/cost before this change and still won't.
+    join_keys = (["period"] if period_rev else []) + dims
+    on_clause = " AND ".join(f"r.{k} = c.{k}" for k in join_keys) or "TRUE"
+    key_select = ", ".join(f"COALESCE(r.{k}, c.{k}) AS {k}" for k in join_keys)
+    outer_select = (f"{key_select}, " if key_select else "") + (
+        "COALESCE(r.revenue, 0) AS revenue, COALESCE(r.order_count, 0) AS order_count, "
+        "COALESCE(c.cost, 0) AS cost"
+    )
+
+    sql = f"""
+        WITH revenue_cte AS (
+            SELECT {', '.join(revenue_select)}
+            FROM orders o
+            JOIN order_lines ol ON ol.order_id = o.id
+            JOIN customers c ON c.id = o.customer_id
+            WHERE 1=1 {rev_where_sql} {rev_filt_sql}
+            {revenue_group_clause}
+        ),
+        cost_cte AS (
+            SELECT {', '.join(cost_select)}
+            FROM postings p
+            JOIN vouchers v ON v.id = p.voucher_id
+            {cost_join_clause}
+            WHERE p.account_number BETWEEN 4000 AND 7999 {customer_required} {cost_where_sql} {cost_filt_sql}
+            {cost_group_clause}
+        )
+        SELECT {outer_select}
+        FROM revenue_cte r
+        FULL OUTER JOIN cost_cte c ON {on_clause}
+    """
+    # rev_*_params and cost_*_params share the same bind names (:date_start,
+    # :filt_<dim>) for the same underlying values (same date_range/filters
+    # apply to both sides) — merging them is safe, not a collision.
+    params = {**rev_where_params, **rev_filt_params, **cost_where_params, **cost_filt_params}
+    df = run_query(sql, params)
+    if "period" in df.columns:
+        df["period"] = _to_naive_datetime(df["period"])
+    return df
+
+
 def get_measure(
     measure: str,
     group_by: list[str] | None = None,
@@ -219,10 +318,6 @@ def get_measure(
     group_by = group_by or []
     company_scoped = any(d in ("company", "location", "segment", "nace_name") for d in group_by)
 
-    join_keys = [d for d in group_by if d != "cost_bucket"]
-    if granularity:
-        join_keys = ["period"] + join_keys
-
     # Only fetch what this measure actually needs — profiling showed each
     # round trip to the Supabase pooler costs ~180-210ms regardless of query
     # complexity or row count (network latency dominates, not execution
@@ -234,31 +329,11 @@ def get_measure(
     if measure == "cost":
         return _fetch_cost(group_by, granularity, date_range, filters, company_scoped)
 
-    # profit / margin_pct: both are genuinely needed — merge on shared keys.
-    revenue_df = _fetch_revenue(group_by, granularity, date_range, filters)
-    cost_df = _fetch_cost(group_by, granularity, date_range, filters, company_scoped)
-    merge_keys = [k for k in join_keys if k in revenue_df.columns and k in cost_df.columns]
-    if not merge_keys:
-        rev_total = revenue_df["revenue"].sum() if not revenue_df.empty else 0.0
-        cost_total = cost_df["cost"].sum() if not cost_df.empty else 0.0
-        result = pd.DataFrame(
-            {
-                "revenue": [rev_total],
-                "cost": [cost_total],
-                "profit": [rev_total - cost_total],
-                "margin_pct": [
-                    (rev_total - cost_total) / rev_total * 100 if rev_total else 0.0
-                ],
-            }
-        )
-        return result
-
-    merged = pd.merge(
-        revenue_df,
-        cost_df.groupby(merge_keys, as_index=False)["cost"].sum() if merge_keys else cost_df,
-        on=merge_keys,
-        how="outer",
-    )
+    # profit / margin_pct: both are genuinely needed — one combined round
+    # trip (see _fetch_revenue_cost_combined) instead of two + a pandas
+    # outer-merge; the SQL-side FULL OUTER JOIN + COALESCE already leaves
+    # revenue/cost with no NaNs, so this only adds profit/margin_pct.
+    merged = _fetch_revenue_cost_combined(group_by, granularity, date_range, filters, company_scoped)
     merged["revenue"] = merged["revenue"].fillna(0.0)
     merged["cost"] = merged["cost"].fillna(0.0)
     merged["profit"] = merged["revenue"] - merged["cost"]
