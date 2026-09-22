@@ -7,7 +7,7 @@ from data.geocoding import CITY_COORDINATES
 from semantic.metrics import get_client_history, get_client_projects, get_client_summary, get_date_bounds
 from ui.charts import company_scatter_map, grouped_bar_compare, line_over_time
 from ui.components import format_currency, format_int, kpi_tile, segmented_control
-from ui.i18n import t
+from ui.i18n import t, t_sector
 
 MAX_COMPARE = 3
 
@@ -37,7 +37,8 @@ def _render_list(lang: str, theme: str, summary: pd.DataFrame):
         query = st.text_input(t("search_clients", lang), key="client_search")
     with col_sector:
         sector_filter = st.multiselect(
-            t("sector", lang), options=sorted(summary["sector"].dropna().unique()), key="client_sector"
+            t("sector", lang), options=sorted(summary["sector"].dropna().unique()), key="client_sector",
+            format_func=lambda s: t_sector(s, lang),
         )
     with col_size:
         size_filter = st.multiselect(
@@ -73,7 +74,7 @@ def _render_list(lang: str, theme: str, summary: pd.DataFrame):
             c1, c2, c3, c4, c5 = st.columns([3, 2, 2, 2, 2])
             with c1:
                 st.markdown(f"**{row['name']}**")
-                st.caption(f"{row['sector']} · {row['size_band']}")
+                st.caption(f"{t_sector(row['sector'], lang)} · {row['size_band']}")
             with c2:
                 st.markdown(f"{t('revenue', lang)}")
                 st.markdown(f"**{format_currency(row['revenue'])}**")
@@ -112,7 +113,7 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame, date_range: tup
         st.rerun()
 
     st.markdown(f"### {name}")
-    st.caption(f"{row['sector']} · {row['size_band']} · {row.get('city', '')}")
+    st.caption(f"{t_sector(row['sector'], lang)} · {row['size_band']} · {row.get('city', '')}")
 
     st.caption(f"ℹ️ {t('no_cost_note', lang)}")
     cols = st.columns(3)
@@ -135,7 +136,8 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame, date_range: tup
                 }
             )
             fig = company_scatter_map(
-                point_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme
+                point_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme,
+                hover_extra_label=t("city", lang), color_label=t("revenue", lang),
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
@@ -143,17 +145,20 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame, date_range: tup
         st.markdown(f'<div class="section-label">{t("history", lang)}</div>', unsafe_allow_html=True)
         if "client_period_type" not in st.session_state:
             st.session_state.client_period_type = "month"
-        st.session_state.client_period_type = segmented_control(
+        segmented_control(
             [
                 ("month", t("month", lang)), ("quarter", t("quarter", lang)),
                 ("year", t("year", lang)),
             ],
             st.session_state.client_period_type, "client_period_type",
+            state_key="client_period_type",
         )
         history_df = get_client_history(name, st.session_state.client_period_type, date_range)
         if not history_df.empty and "period" in history_df.columns:
             fig = line_over_time(
-                history_df.sort_values("period"), "period", "revenue", None, t("revenue", lang), theme
+                history_df.sort_values("period"), "period", "revenue", None, t("revenue", lang), theme,
+                x_title=t(st.session_state.client_period_type, lang), y_title=t("revenue", lang),
+                granularity=st.session_state.client_period_type,
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
@@ -181,6 +186,7 @@ def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
     st.caption(f"ℹ️ {t('no_cost_note', lang)}")
 
     table = subset[["name", "sector", "size_band", "revenue", "order_count"]].copy()
+    table["sector"] = table["sector"].map(lambda s: t_sector(s, lang))
     table.columns = [
         t("company", lang), t("sector", lang), t("size_band", lang), t("revenue", lang), t("order_count", lang),
     ]
@@ -188,10 +194,16 @@ def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
 
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
-        fig_rev = grouped_bar_compare(subset, "name", "revenue", "name", t("revenue", lang), theme)
+        fig_rev = grouped_bar_compare(
+            subset, "name", "revenue", "name", t("revenue", lang), theme,
+            x_title=t("company", lang), y_title=t("revenue", lang),
+        )
         st.plotly_chart(fig_rev, use_container_width=True, config={"displayModeBar": False})
     with chart_col2:
-        fig_orders = grouped_bar_compare(subset, "name", "order_count", "name", t("order_count", lang), theme)
+        fig_orders = grouped_bar_compare(
+            subset, "name", "order_count", "name", t("order_count", lang), theme,
+            x_title=t("company", lang), y_title=t("order_count", lang),
+        )
         st.plotly_chart(fig_orders, use_container_width=True, config={"displayModeBar": False})
 
     map_rows = []
@@ -205,7 +217,8 @@ def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
     if map_rows:
         map_df = pd.DataFrame(map_rows)
         fig_map = company_scatter_map(
-            map_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme
+            map_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme,
+            hover_extra_label=t("city", lang), color_label=t("revenue", lang),
         )
         st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
 

@@ -34,6 +34,7 @@ def _products_section(lang: str, theme: str, date_range: tuple | None) -> None:
     fig = bar_breakdown(
         df.head(10), "product", "revenue", None, t("revenue", lang), theme,
         orientation="h", value_suffix=" kr", color_scale="sage",
+        x_title=t("product", lang), y_title=t("revenue", lang),
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     table = df.rename(
@@ -53,6 +54,7 @@ def _suppliers_section(lang: str, theme: str, date_range: tuple | None) -> None:
     fig = bar_breakdown(
         df, "supplier", "spend", None, t("spend", lang), theme,
         orientation="h", value_suffix=" kr", color_scale="warm",
+        x_title=t("supplier", lang), y_title=t("spend", lang),
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     table = df.rename(
@@ -73,6 +75,7 @@ def _staffing_section(lang: str, theme: str) -> None:
     df = df.rename(columns={"employment_type": t("employment_type", lang)})
     fig = bar_breakdown(
         df, "department", "headcount", t("employment_type", lang), t("headcount", lang), theme, value_suffix="",
+        x_title=t("department", lang), y_title=t("headcount", lang),
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
@@ -98,7 +101,10 @@ def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> Non
         df = df.copy()
         df["year"] = df["period"].dt.year
         df[t("activity_type", lang)] = df["activity_type"].map(lambda a: label_map.get(a, a.title()))
-        fig = bar_breakdown(df, "year", "hours", t("activity_type", lang), t("hours", lang), theme)
+        fig = bar_breakdown(
+            df, "year", "hours", t("activity_type", lang), t("hours", lang), theme,
+            x_title=t("year", lang), y_title=t("hours", lang),
+        )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     st.write("")
@@ -110,7 +116,10 @@ def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> Non
         absence_df[t("activity_type", lang)] = absence_df["activity_type"].map(
             lambda a: t(_ABSENCE_LABELS.get(a, ""), lang) if a in _ABSENCE_LABELS else a.title()
         )
-        fig_absence = bar_breakdown(absence_df, "year", "days", t("activity_type", lang), t("days", lang), theme)
+        fig_absence = bar_breakdown(
+            absence_df, "year", "days", t("activity_type", lang), t("days", lang), theme,
+            x_title=t("year", lang), y_title=t("days", lang),
+        )
         st.plotly_chart(fig_absence, use_container_width=True, config={"displayModeBar": False})
 
     # "Where" (department) x "how" (absence type) — a grouped bar answers
@@ -127,7 +136,10 @@ def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> Non
     dept_df[t("activity_type", lang)] = dept_df["activity_type"].map(
         lambda a: t(_ABSENCE_LABELS.get(a, ""), lang) if a in _ABSENCE_LABELS else a.title()
     )
-    fig_dept = bar_breakdown(dept_df, "department", "days", t("activity_type", lang), t("days", lang), theme)
+    fig_dept = bar_breakdown(
+        dept_df, "department", "days", t("activity_type", lang), t("days", lang), theme,
+        x_title=t("department", lang), y_title=t("days", lang),
+    )
     st.plotly_chart(fig_dept, use_container_width=True, config={"displayModeBar": False})
 
 
@@ -138,6 +150,7 @@ def _cost_by_account_section(lang: str, theme: str, date_range: tuple | None) ->
     fig = bar_breakdown(
         df.head(12), "account", "cost", None, t("cost", lang), theme,
         orientation="h", value_suffix=" kr", color_scale="warm",
+        x_title=t("account", lang), y_title=t("cost", lang),
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
@@ -145,7 +158,10 @@ def _cost_by_account_section(lang: str, theme: str, date_range: tuple | None) ->
 def _payroll_section(lang: str, theme: str, date_range: tuple | None) -> None:
     df = get_payroll_trend(date_range=date_range)
     if not df.empty:
-        fig = line_over_time(df, "period", "payroll", None, t("payroll", lang), theme, value_suffix=" kr", fill=True)
+        fig = line_over_time(
+            df, "period", "payroll", None, t("payroll", lang), theme, value_suffix=" kr", fill=True,
+            x_title=t("month", lang), y_title=t("payroll", lang), granularity="month",
+        )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     st.write("")
@@ -196,6 +212,7 @@ def _payroll_section(lang: str, theme: str, date_range: tuple | None) -> None:
     # (it's gross x 1.141), so stacking would double-count it.
     fig_emp = grouped_bar_compare(
         melted, "year", "amount", t("amount_type", lang), t("amount", lang), theme, value_suffix=" kr",
+        x_title=t("year", lang), y_title=t("amount", lang),
     )
     st.plotly_chart(fig_emp, use_container_width=True, config={"displayModeBar": False})
 
@@ -209,6 +226,7 @@ def _cash_flow_section(lang: str, theme: str, date_range: tuple | None) -> None:
     melted = melted.rename(columns={"flow": t("flow_type", lang)})
     fig = line_over_time(
         melted, "period", "amount", t("flow_type", lang), t("cash_flow", lang), theme, value_suffix=" kr",
+        x_title=t("month", lang), y_title=t("amount", lang), granularity="month",
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
@@ -247,19 +265,24 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             t("cash_flow", lang), t("lifecycle_events", lang),
         ]
     )
-    with tabs[0]:
-        _products_section(lang, theme, date_range)
-    with tabs[1]:
-        _suppliers_section(lang, theme, date_range)
-    with tabs[2]:
-        _staffing_section(lang, theme)
-    with tabs[3]:
-        _utilization_section(lang, theme, date_range)
-    with tabs[4]:
-        _cost_by_account_section(lang, theme, date_range)
-    with tabs[5]:
-        _payroll_section(lang, theme, date_range)
-    with tabs[6]:
-        _cash_flow_section(lang, theme, date_range)
-    with tabs[7]:
-        _lifecycle_section(lang, theme, date_range)
+    # Streamlit renders every tab panel's body on each rerun (only the
+    # inactive ones are hidden with CSS) — one spinner around the whole set
+    # covers the actual query/chart-building delay regardless of which sub-
+    # tab the user is looking at.
+    with st.spinner(t("loading_data", lang)):
+        with tabs[0]:
+            _products_section(lang, theme, date_range)
+        with tabs[1]:
+            _suppliers_section(lang, theme, date_range)
+        with tabs[2]:
+            _staffing_section(lang, theme)
+        with tabs[3]:
+            _utilization_section(lang, theme, date_range)
+        with tabs[4]:
+            _cost_by_account_section(lang, theme, date_range)
+        with tabs[5]:
+            _payroll_section(lang, theme, date_range)
+        with tabs[6]:
+            _cash_flow_section(lang, theme, date_range)
+        with tabs[7]:
+            _lifecycle_section(lang, theme, date_range)

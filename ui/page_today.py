@@ -66,11 +66,9 @@ def render(lang: str, theme: str) -> None:
     st.markdown(f'<div class="section-label">{t("invoice_payment_status", lang)}</div>', unsafe_allow_html=True)
     if "invoice_window" not in st.session_state:
         st.session_state.invoice_window = 14
-    st.session_state.invoice_window = int(
-        segmented_control(
-            [(14, t("last_n_days", lang).format(n=14)), (21, t("last_n_days", lang).format(n=21))],
-            st.session_state.invoice_window, "invoice_window",
-        )
+    segmented_control(
+        [(14, t("last_n_days", lang).format(n=14)), (21, t("last_n_days", lang).format(n=21))],
+        st.session_state.invoice_window, "invoice_window", state_key="invoice_window",
     )
     status_df = get_orders_invoice_payment_status(shown_day, st.session_state.invoice_window)
     if status_df.empty:

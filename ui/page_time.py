@@ -7,7 +7,7 @@ from semantic.metrics import get_companies, get_date_bounds, get_measure
 from semantic.schema import MEASURES
 from ui.charts import bar_breakdown, line_over_time
 from ui.components import format_currency, format_delta_pct, format_int, format_pct, kpi_tile, segmented_control
-from ui.i18n import t
+from ui.i18n import t, t_sector
 
 FORMATTERS = {
     "revenue": format_currency,
@@ -44,7 +44,7 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         st.session_state.period_type = "month"
 
     st.markdown(f'<div class="section-label">{t("period_type", lang)}</div>', unsafe_allow_html=True)
-    st.session_state.period_type = segmented_control(
+    segmented_control(
         [
             ("month", t("month", lang)),
             ("quarter", t("quarter", lang)),
@@ -53,6 +53,7 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         ],
         st.session_state.period_type,
         "period_type",
+        state_key="period_type",
     )
     granularity = PERIOD_TO_GRANULARITY[st.session_state.period_type]
 
@@ -93,47 +94,63 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         return
 
     st.write("")
-    totals = get_measure("profit", group_by=[], date_range=date_range_param, filters=filters)
-    kpi_cols = st.columns(len(selected_measures))
-    for i, m in enumerate(selected_measures):
-        value = totals[m].iloc[0] if m in totals.columns and not totals.empty else None
-        with kpi_cols[i]:
-            kpi_tile(t(m, lang), FORMATTERS.get(m, str)(value) if value is not None else "—", theme)
+    with st.spinner(t("loading_data", lang)):
+        totals = get_measure("profit", group_by=[], date_range=date_range_param, filters=filters)
+        kpi_cols = st.columns(len(selected_measures))
+        for i, m in enumerate(selected_measures):
+            value = totals[m].iloc[0] if m in totals.columns and not totals.empty else None
+            with kpi_cols[i]:
+                kpi_tile(t(m, lang), FORMATTERS.get(m, str)(value) if value is not None else "—", theme)
 
-    st.write("")
-    st.markdown(f'<div class="section-label">{t("over_time", lang)}</div>', unsafe_allow_html=True)
-    for m in selected_measures:
-        ts_df = get_measure(m, group_by=[], date_range=date_range_param, granularity=granularity, filters=filters)
-        if ts_df.empty or "period" not in ts_df.columns:
-            continue
-        y_col = m if m in ts_df.columns else "profit"
-        fig = line_over_time(ts_df.sort_values("period"), "period", y_col, None, t(m, lang), theme)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
-    if group_by:
         st.write("")
-        st.markdown(f'<div class="section-label">{t("breakdown", lang)}</div>', unsafe_allow_html=True)
-
-        restricted = any(d in CUSTOMER_ATTR_DIMS for d in group_by)
-        breakdown_measures = [
-            m for m in selected_measures if not restricted or m in BREAKDOWN_SAFE_MEASURES
-        ]
-        if restricted and len(breakdown_measures) < len(selected_measures):
-            st.caption(f"ℹ️ {t('cost_by_dimension_note', lang)}")
-
-        bcols = st.columns(min(2, len(breakdown_measures)) or 1)
-        for i, m in enumerate(breakdown_measures):
-            df = get_measure(m, group_by=group_by, date_range=date_range_param, filters=filters)
-            if df.empty:
-                continue
-            y_col = m if m in df.columns else "profit"
-            x_col = group_by[0]
-            sorted_df = df.sort_values(y_col, ascending=False).head(20)
-            fig = bar_breakdown(
-                sorted_df, x_col, y_col, group_by[1] if len(group_by) > 1 else None, t(m, lang), theme,
+        st.markdown(f'<div class="section-label">{t("over_time", lang)}</div>', unsafe_allow_html=True)
+        for m in selected_measures:
+            ts_df = get_measure(
+                m, group_by=[], date_range=date_range_param, granularity=granularity, filters=filters,
             )
-            with bcols[i % len(bcols)]:
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            if ts_df.empty or "period" not in ts_df.columns:
+                continue
+            y_col = m if m in ts_df.columns else "profit"
+            fig = line_over_time(
+                ts_df.sort_values("period"), "period", y_col, None, t(m, lang), theme,
+                x_title=t(granularity, lang), y_title=t(m, lang), granularity=granularity,
+            )
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+        if group_by:
+            st.write("")
+            st.markdown(f'<div class="section-label">{t("breakdown", lang)}</div>', unsafe_allow_html=True)
+
+            restricted = any(d in CUSTOMER_ATTR_DIMS for d in group_by)
+            breakdown_measures = [
+                m for m in selected_measures if not restricted or m in BREAKDOWN_SAFE_MEASURES
+            ]
+            if restricted and len(breakdown_measures) < len(selected_measures):
+                st.caption(f"ℹ️ {t('cost_by_dimension_note', lang)}")
+
+            bcols = st.columns(min(2, len(breakdown_measures)) or 1)
+            for i, m in enumerate(breakdown_measures):
+                df = get_measure(m, group_by=group_by, date_range=date_range_param, filters=filters)
+                if df.empty:
+                    continue
+                y_col = m if m in df.columns else "profit"
+                x_col = group_by[0]
+                sorted_df = df.sort_values(y_col, ascending=False).head(20)
+                if x_col == "nace_name":
+                    sorted_df = sorted_df.copy()
+                    sorted_df[x_col] = sorted_df[x_col].map(lambda s: t_sector(s, lang))
+                color_col = None
+                if len(group_by) > 1:
+                    if group_by[1] == "nace_name":
+                        sorted_df[group_by[1]] = sorted_df[group_by[1]].map(lambda s: t_sector(s, lang))
+                    color_col = t(group_by[1], lang)
+                    sorted_df = sorted_df.rename(columns={group_by[1]: color_col})
+                fig = bar_breakdown(
+                    sorted_df, x_col, y_col, color_col, t(m, lang), theme,
+                    x_title=t(group_by[0], lang), y_title=t(m, lang),
+                )
+                with bcols[i % len(bcols)]:
+                    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     st.write("")
     st.markdown(f'<div class="section-label">{t("compare_periods", lang)}</div>', unsafe_allow_html=True)
@@ -147,17 +164,23 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     else:
         default_a = (max_date - dt.timedelta(days=455), max_date - dt.timedelta(days=365))
         default_b = (max_date - dt.timedelta(days=90), max_date)
+    # Bounded by the full data range (data_min/data_max), not min_date/
+    # max_date — those are clipped to the globally-selected year, which
+    # would make it impossible to compare e.g. March 2020 against March
+    # 2023 whenever a single year is pinned. Comparing across years is the
+    # whole point of this section, so it stays unrestricted regardless of
+    # the year selector up top.
     with col1:
         st.caption(t("period_a", lang))
         period_a = st.date_input(
             "period_a_input", value=default_a,
-            min_value=min_date, max_value=max_date, key=f"period_a_{selected_year}", label_visibility="collapsed",
+            min_value=data_min, max_value=data_max, key=f"period_a_{selected_year}", label_visibility="collapsed",
         )
     with col2:
         st.caption(t("period_b", lang))
         period_b = st.date_input(
             "period_b_input", value=default_b,
-            min_value=min_date, max_value=max_date, key=f"period_b_{selected_year}", label_visibility="collapsed",
+            min_value=data_min, max_value=data_max, key=f"period_b_{selected_year}", label_visibility="collapsed",
         )
 
     if (
