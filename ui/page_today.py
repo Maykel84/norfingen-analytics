@@ -63,7 +63,12 @@ def render(lang: str, theme: str) -> None:
             kpi_tile(f"{window_label} — {t('order_count', lang)}", format_int(stats["order_count"]), theme)
 
     st.write("")
-    st.markdown(f'<div class="section-label">{t("invoice_payment_status", lang)}</div>', unsafe_allow_html=True)
+    # 🧾 matches the icon language already used elsewhere (the year
+    # dropdown's 📅/🗓) — this section is the one place invoicing shows up,
+    # so a recognizable glyph anchors it faster than text weight alone.
+    st.markdown(
+        f'<div class="section-label">🧾 {t("invoice_payment_status", lang)}</div>', unsafe_allow_html=True,
+    )
     if "invoice_window" not in st.session_state:
         st.session_state.invoice_window = 14
     segmented_control(

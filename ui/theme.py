@@ -144,25 +144,6 @@ def inject_global_css(theme: str) -> str:
         background: {t['terracotta_button']} !important;
         color: {t['on_accent']} !important;
     }}
-    .st-key-toggle_lang div[data-testid="stButton"] > button:hover,
-    .st-key-toggle_theme div[data-testid="stButton"] > button:hover {{
-        color: {t['terracotta_button']} !important;
-    }}
-    /* CRITICAL fix: the plain :hover rule above (meant for the resting/
-       secondary state) ties in CSS specificity with the [kind="primary"]
-       rule above it and wins on source order — so hovering the ALREADY-
-       ACTIVE pill (which happens automatically right after clicking it,
-       since the cursor is still sitting on it) left the background at
-       terracotta_button from the primary rule while :hover repainted the
-       text to that exact same terracotta_button color: text and
-       background identical, i.e. invisible until the mouse moved away.
-       An explicit primary+hover rule (same colors as resting primary)
-       closes that gap in both themes. */
-    .st-key-toggle_lang div[data-testid="stButton"] > button[kind="primary"]:hover,
-    .st-key-toggle_theme div[data-testid="stButton"] > button[kind="primary"]:hover {{
-        background: {t['terracotta_button']} !important;
-        color: {t['on_accent']} !important;
-    }}
 
     /* Main nav row — the one card in the header, symmetric padding and
        fully rounded (it no longer visually docks under the identity strip,
@@ -185,17 +166,53 @@ def inject_global_css(theme: str) -> str:
         background: {t['sage']} !important;
         color: {t['on_accent']} !important;
     }}
+
+    /* --- Shared hover interaction for every pill/segmented/nav button ----
+       One rule set, reused by every component below (nav bar, language/
+       theme toggle, every segmented_control() pill row) instead of each
+       hand-rolling its own — a future pill control picks this up for free
+       just by living inside one of these scoped containers. The pattern is
+       always the same: resting/secondary buttons swap in a soft tinted
+       background + accent text on hover; already-active (kind="primary")
+       buttons stay exactly as they are on hover. That second part matters:
+       the naive version (a plain :hover rule with no kind="primary"
+       counterpart) ties in CSS specificity with the "[kind=\"primary\"]"
+       rule and wins on source order, so hovering an ALREADY-SELECTED
+       button — which happens automatically right after clicking it, since
+       the cursor is still sitting on it — got its background silently
+       reset from the plain :hover rule while keeping the primary rule's
+       text color, or vice versa, producing low/zero-contrast combinations
+       (a pill whose text became the same color as its own background,
+       genuinely invisible until the mouse moved away). Explicit
+       kind="primary"+hover rules for every family closes that gap. Each
+       family keeps its own accent color (sage for nav/pills, terracotta
+       for the small language/theme toggle) — same interaction logic,
+       component-appropriate palette, per the toggle's existing design. */
+    .st-key-app_nav div[data-testid="stButton"] > button,
+    [class*="st-key-pill_"] div[data-testid="stButton"] > button {{
+        transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }}
+    .st-key-toggle_lang div[data-testid="stButton"] > button,
+    .st-key-toggle_theme div[data-testid="stButton"] > button {{
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }}
     .st-key-app_nav div[data-testid="stButton"] > button:hover {{
         color: {t['sage']} !important;
         background: {t['sage_soft']} !important;
     }}
-    /* Same fix as toggle_lang/toggle_theme above: without this, hovering
-       the already-active nav tab (the cursor sits on it right after the
-       click that activated it) repaints it pale-green-on-pale-green via
-       the plain :hover rule, instead of staying solid-green-on-white. */
     .st-key-app_nav div[data-testid="stButton"] > button[kind="primary"]:hover {{
         color: {t['on_accent']} !important;
         background: {t['sage']} !important;
+    }}
+    .st-key-toggle_lang div[data-testid="stButton"] > button:hover,
+    .st-key-toggle_theme div[data-testid="stButton"] > button:hover {{
+        color: {t['terracotta_button']} !important;
+        background: {t['terracotta_soft']} !important;
+    }}
+    .st-key-toggle_lang div[data-testid="stButton"] > button[kind="primary"]:hover,
+    .st-key-toggle_theme div[data-testid="stButton"] > button[kind="primary"]:hover {{
+        background: {t['terracotta_button']} !important;
+        color: {t['on_accent']} !important;
     }}
     .brand {{
         font-family: {FONT_DISPLAY};
@@ -276,20 +293,19 @@ def inject_global_css(theme: str) -> str:
         border-color: {t['sage']} !important;
         color: {t['on_accent']} !important;
     }}
+    /* Same hover pattern and tokens as the nav bar (see the shared block
+       above): resting pills get the nav bar's sage_soft background swap
+       instead of a weaker border-only change, so every pill row (period-
+       type, invoice-window, Operations sections) reads as consistently
+       "hoverable" as the nav tabs above them. The kind="primary" pairing
+       is the same fix that closes the invisible-text gap for an already-
+       selected pill the cursor is still resting on after the click that
+       selected it. */
     [class*="st-key-pill_"] div[data-testid="stButton"] > button:hover {{
         border-color: {t['sage']} !important;
         color: {t['sage']} !important;
+        background: {t['sage_soft']} !important;
     }}
-    /* CRITICAL fix — the actual root cause of "pill text disappears in its
-       active state": the plain :hover rule above ties in specificity with
-       the [kind="primary"] rule and wins on source order, so hovering an
-       ALREADY-ACTIVE pill (the cursor is still over it right after the
-       click that selected it) left the background sage (from the primary
-       rule, untouched by :hover) while :hover repainted the text to that
-       same sage green — identical text/background color, genuinely
-       invisible, exactly the "blank colored shape" behavior reported.
-       Restoring on_accent text (white in light mode, dark ink in dark —
-       see ui/theme.py's module docstring) on hover keeps it legible. */
     [class*="st-key-pill_"] div[data-testid="stButton"] > button[kind="primary"]:hover {{
         border-color: {t['sage']} !important;
         color: {t['on_accent']} !important;
@@ -420,6 +436,24 @@ def inject_global_css(theme: str) -> str:
         height: auto !important;
         overflow: visible !important;
         row-gap: 4px;
+    }}
+    /* Selected-tag hover — same interaction logic as the nav bar/pill hover
+       above (an explicit, deliberate state change on hover, never a rule
+       that can leave text and background the same color) but in this
+       section's own palette: tags are sage-filled pills already, so hover
+       deepens to the terracotta accent — a different, adapted hue rather
+       than nav bar's sage-on-sage, giving a clearly distinct "you're about
+       to remove this" cue instead of just a darker green. Both the tag
+       body and its label text get explicit colors on hover so neither can
+       end up matching the background. */
+    [data-testid="stMultiSelectTagsContainer"] [data-tag] {{
+        transition: background-color 0.15s ease;
+    }}
+    [data-testid="stMultiSelectTagsContainer"] [data-tag]:hover {{
+        background: {t['terracotta_button']} !important;
+    }}
+    [data-testid="stMultiSelectTagsContainer"] [data-tag]:hover span {{
+        color: {t['on_accent']} !important;
     }}
 
     /* Widget labels (text_input/multiselect/selectbox/date_input captions
