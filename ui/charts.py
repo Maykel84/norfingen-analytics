@@ -421,7 +421,14 @@ def company_scatter_map(
     # an actual range of values to read.
     show_colorbar = jittered[color_col].nunique() > 1
     fig.update_layout(
-        map_style="dark" if theme == "dark" else "light",
+        # carto-positron/darkmatter: a muted, near-neutral basemap (soft
+        # cream/gray land, pale water) instead of the "light"/"dark" built-
+        # ins' more saturated blue-gray water — the map still has its own
+        # fixed color (a real basemap can't literally be cream), but this
+        # is far closer to the app's warm neutral scale, so the map reads
+        # as "framed in the same design system" rather than a jarring
+        # mismatched rectangle dropped onto a cream page.
+        map_style="carto-darkmatter" if theme == "dark" else "carto-positron",
         paper_bgcolor=c["surface"],
         margin=dict(l=0, r=0, t=32, b=0),
         title=dict(text=title, font=dict(size=13, color=c["text_secondary"], family=FONT_FAMILY)),
@@ -453,7 +460,7 @@ def coverage_map(df: pd.DataFrame, count_col: str, theme: str, title: str, names
     )
     fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>%{customdata[0]}<extra></extra>")
     fig.update_layout(
-        map_style="dark" if theme == "dark" else "light",
+        map_style="carto-darkmatter" if theme == "dark" else "carto-positron",
         paper_bgcolor=c["surface"],
         margin=dict(l=0, r=0, t=32, b=0),
         title=dict(text=title, font=dict(size=13, color=c["text_secondary"], family=FONT_FAMILY)),

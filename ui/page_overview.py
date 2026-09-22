@@ -71,4 +71,5 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             if not density_df.empty:
                 fig_map = coverage_map(density_df, "company_count", theme, "")
                 fig_map.update_layout(height=420)
-                st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
+                with st.container(key="map_card"):
+                    st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})

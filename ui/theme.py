@@ -340,6 +340,22 @@ def inject_global_css(theme: str) -> str:
         padding: 14px 18px;
         margin-bottom: 10px;
     }}
+
+    /* Map charts (coverage_map/company_scatter_map) — a real basemap can't
+       literally be cream-colored, so its own fixed color always reads as a
+       plain rectangle dropped onto the page unless it's visibly framed.
+       Same rounded-card treatment as every other panel (kpi-tile, client-
+       card) with overflow:hidden to clip the map's square corners to the
+       card's rounded ones, so the color difference reads as "a map in a
+       card," the same deliberate framing every other chart already gets,
+       not a seam or a rendering mistake. */
+    .st-key-map_card {{
+        background: {t['surface']};
+        border-radius: 16px;
+        box-shadow: 0 2px 10px {t['shadow']};
+        padding: 6px;
+        overflow: hidden;
+    }}
     .client-card .name {{
         font-weight: 700;
         font-size: 15px;

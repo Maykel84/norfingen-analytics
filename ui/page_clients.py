@@ -139,7 +139,8 @@ def _render_detail(lang: str, theme: str, summary: pd.DataFrame, date_range: tup
                 point_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme,
                 hover_extra_label=t("city", lang), color_label=t("revenue", lang),
             )
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            with st.container(key="map_card"):
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     with history_col:
         st.markdown(f'<div class="section-label">{t("history", lang)}</div>', unsafe_allow_html=True)
@@ -220,7 +221,8 @@ def _render_compare(lang: str, theme: str, summary: pd.DataFrame):
             map_df, "revenue", "revenue", "order_count", t("order_count", lang), "", theme,
             hover_extra_label=t("city", lang), color_label=t("revenue", lang),
         )
-        st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
+        with st.container(key="map_card"):
+            st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
 
 
 def render(lang: str, theme: str, selected_year: int | None) -> None:
