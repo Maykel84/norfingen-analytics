@@ -11,11 +11,11 @@
       "port": 8501
     },
     {
-      "name": "streamlit-orchid-cobalt",
+      "name": "streamlit-classic",
       "runtimeExecutable": "bash",
       "runtimeArgs": [
         "-c",
-        "source .venv/bin/activate && NORFINGEN_PALETTE=orchid-cobalt streamlit run app.py --server.port 8502 --server.headless true --theme.primaryColor '#8e1ea2' --theme.backgroundColor '#ffffff' --theme.secondaryBackgroundColor '#f0e8f5' --theme.textColor '#542177'"
+        "source .venv/bin/activate && NORFINGEN_PALETTE=classic streamlit run app.py --server.port 8502 --server.headless true --theme.primaryColor '#1f6b3a' --theme.backgroundColor '#faf7f1' --theme.secondaryBackgroundColor '#ede4d4' --theme.textColor '#2a2318'"
       ],
       "port": 8502
     }

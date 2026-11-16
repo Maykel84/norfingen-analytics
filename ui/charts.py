@@ -61,7 +61,7 @@ def measure_color(measure: str, theme: str) -> str:
     measure, consistent with how it's colored when plotted alongside others."""
     return CATEGORICAL[theme][MEASURE_COLOR_INDEX.get(measure, 0)]
 
-from ui.theme import (  # noqa: E402  (optional preview palette; identity unless NORFINGEN_PALETTE is set)
+from ui.theme import (  # noqa: E402  (palette switch: Orchid & Cobalt by default, NORFINGEN_PALETTE=classic for the old one)
     PALETTE, PREVIEW_CATEGORICAL, PREVIEW_CHROME, PREVIEW_SEQUENTIAL, PREVIEW_SEQUENTIAL_WARM,
 )
 

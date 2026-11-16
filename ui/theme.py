@@ -79,20 +79,19 @@ TOKENS = {
 }
 
 
-# --- Optional preview palette: "Orchid & Cobalt" design system -----------------
+# --- Default palette: "Orchid & Cobalt" design system ---------------------------
 # Source: the user's design-system artifact (claude.ai/artifact/To4ggUxpApHgD9F3q46rc9).
 # Light theme = its Orchid palette, dark theme = its Cobalt palette; hex values
 # are the artifact's semantic tokens (bg, surface, ink, ink-muted, primary,
-# accent, border ...). Off by default; enabled only by
-# NORFINGEN_PALETTE=orchid-cobalt, so the shipped sage/terracotta look is
-# untouched. Token NAMES stay semantic here (sage = primary accent, terracotta
+# accent, border ...). It is the default; NORFINGEN_PALETTE=classic restores the
+# previous sage/terracotta look (the base TOKENS above). Token NAMES stay semantic here (sage = primary accent, terracotta
 # = secondary, slate = third categorical slot) — only the values change.
 # Values NOT in the artifact (derived, flagged): panel/divider tints, soft
 # fills, the light-theme teal third series (mint #98E8DE is too pale as a line
 # on white), and the dark text_secondary step.
 import os
 
-PALETTE = os.environ.get("NORFINGEN_PALETTE", "").strip().lower()
+PALETTE = os.environ.get("NORFINGEN_PALETTE", "orchid-cobalt").strip().lower()
 
 PREVIEW_PALETTE_OVERRIDES = {
     "light": {
