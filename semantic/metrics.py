@@ -368,11 +368,58 @@ def get_available_years() -> list[int]:
     return df["year"].tolist()
 
 
+def get_partial_month_starts() -> list[dt.date]:
+    """First day of every month v_pl_monthly flags `is_partial` (a month whose
+    last day is later than the newest generated voucher/order date). Payroll
+    and COGS are booked at month end, so such a month carries its revenue but
+    not its costs — any profit/margin that includes it is inflated.
+
+    The flag lives in the view so there is exactly one definition of "open
+    month"; this app computes revenue/cost from the raw tables (same formulas
+    as the view) and only borrows the flag."""
+    df = run_query("SELECT month FROM v_pl_monthly WHERE is_partial ORDER BY month")
+    return [dt.datetime.strptime(m, "%Y-%m").date() for m in df["month"]]
+
+
+def _month_end(month_start: dt.date) -> dt.date:
+    return (month_start.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+
+
+def get_partial_months_in_range(date_range: tuple | None) -> list[dt.date]:
+    """The open month(s) a (start, end) range overlaps; None = all time."""
+    partial = get_partial_month_starts()
+    if date_range is None:
+        return partial
+    start, end = date_range
+    return [p for p in partial if p <= end and _month_end(p) >= start]
+
+
+def exclude_partial_months(date_range: tuple | None) -> tuple | None:
+    """Trim a (start, end) range so it stops at the last full month — the
+    equivalent of `WHERE NOT is_partial` for aggregates computed from the raw
+    tables. None (all time) becomes (first order date, last full month end).
+
+    If the whole range sits inside the open month there is nothing to keep, so
+    the range is returned unchanged (callers show a "month in progress" note
+    instead of an empty, misleading zero)."""
+    partial = get_partial_month_starts()
+    if not partial:
+        return date_range
+    cutoff = partial[0] - dt.timedelta(days=1)
+    start, end = date_range if date_range is not None else (get_date_bounds()[0], cutoff)
+    if start > cutoff:
+        return date_range
+    return (start, min(end, cutoff))
+
+
 def get_yearly_totals(year: int | None) -> dict:
-    """Headline KPIs for the Overview landing page, optionally scoped to one year."""
+    """Headline KPIs for the Overview landing page, optionally scoped to one
+    year. Full months only (see exclude_partial_months): the open month has
+    revenue but not yet its payroll/COGS, which would inflate profit/margin."""
     date_range = None
     if year is not None:
         date_range = (dt.date(year, 1, 1), dt.date(year, 12, 31))
+    date_range = exclude_partial_months(date_range)
     totals = get_measure("profit", group_by=[], date_range=date_range, granularity=None)
     company_count_sql = """
         SELECT COUNT(DISTINCT o.customer_id) AS n
@@ -397,11 +444,17 @@ def get_yearly_totals(year: int | None) -> dict:
 
 
 def get_multi_year_trend() -> pd.DataFrame:
-    """Full-history revenue/cost/profit by year, for the landing page trend chart."""
-    return get_measure("profit", group_by=[], granularity="year")
+    """Full-history revenue/cost/profit by year, for the landing page trend
+    chart. A yearly bucket is an aggregate, so the open month is left out of
+    the latest year (same as the API's /pl/yearly)."""
+    return get_measure(
+        "profit", group_by=[], date_range=exclude_partial_months(None), granularity="year",
+    )
 
 
 def get_monthly_trend_for_year(year: int | None) -> pd.DataFrame:
+    """Month-by-month series. Deliberately keeps the open month (callers mark
+    it with get_partial_months_in_range) — a monthly chart is not an aggregate."""
     date_range = (dt.date(year, 1, 1), dt.date(year, 12, 31)) if year else None
     return get_measure("profit", group_by=[], date_range=date_range, granularity="month")
 
@@ -826,26 +879,364 @@ def get_orders_window_stats(anchor_day: dt.date, days: int) -> dict:
     return {"order_count": int(df["order_count"].iloc[0]), "revenue": float(df["revenue"].iloc[0])}
 
 
+# Invoice status is DERIVED, never read from orders.status (that column is the
+# generator's modelled intent, not what happened). Same rule as the
+# `Faktury_sprzedazy` export in the generator repo (export_queries.py):
+#   WRITTEN_OFF  orders.write_off_voucher_id is set
+#   PAID         a customer payment is booked in the bank (INCOMING)
+#   OVERDUE      unpaid and the due date (a Saturday/Sunday moved to Monday)
+#                is before "today"
+#   OPEN         unpaid, not yet due
+# "Today" is the newest generated date, NOT the clock: the generator only runs
+# on weekdays, so the clock is routinely ahead of the data.
+_INVOICE_STATUS_CTES = """
+    data_today AS (
+        SELECT GREATEST((SELECT MAX(date) FROM vouchers), (SELECT MAX(order_date) FROM orders)) AS d
+    ),
+    payments AS (
+        SELECT order_id, MIN(date) AS paid_date
+        FROM bank_transactions
+        WHERE transaction_type = 'INCOMING' AND order_id IS NOT NULL
+        GROUP BY order_id
+    )
+"""
+_INVOICE_STATUS_CASE = """
+    CASE
+        WHEN o.write_off_voucher_id IS NOT NULL THEN 'WRITTEN_OFF'
+        WHEN pay.paid_date IS NOT NULL THEN 'PAID'
+        WHEN (o.invoice_date + o.invoices_due_in
+              + CASE EXTRACT(ISODOW FROM o.invoice_date + o.invoices_due_in)
+                    WHEN 6 THEN 2 WHEN 7 THEN 1 ELSE 0 END) < dtd.d THEN 'OVERDUE'
+        ELSE 'OPEN'
+    END
+"""
+
+
 def get_orders_invoice_payment_status(anchor_day: dt.date, days: int) -> pd.DataFrame:
     """Orders placed in the last `days` (ending at anchor_day), with whether
-    each has been invoiced (orders.invoice_date set and not in the future)
-    and whether a matching customer payment has landed in bank_transactions
-    — the Today page's invoice/payment follow-up view."""
+    each has been invoiced (invoice_date set and not later than the newest
+    generated date) and its derived invoice_status (PAID / OPEN / OVERDUE /
+    WRITTEN_OFF) — the Today page's invoice/payment follow-up view."""
     start = anchor_day - dt.timedelta(days=days - 1)
-    sql = """
+    sql = f"""
+        WITH {_INVOICE_STATUS_CTES}
         SELECT
             o.id, o.order_date, c.name AS customer,
             SUM(ol.amount_excluding_vat_currency) AS amount,
-            (o.invoice_date IS NOT NULL AND o.invoice_date <= CURRENT_DATE) AS invoiced,
-            EXISTS (
-                SELECT 1 FROM bank_transactions bt
-                WHERE bt.order_id = o.id AND bt.transaction_type = 'INCOMING'
-            ) AS paid
+            (o.invoice_date IS NOT NULL AND o.invoice_date <= dtd.d) AS invoiced,
+            {_INVOICE_STATUS_CASE} AS invoice_status
         FROM orders o
         JOIN customers c ON c.id = o.customer_id
         JOIN order_lines ol ON ol.order_id = o.id
+        CROSS JOIN data_today dtd
+        LEFT JOIN payments pay ON pay.order_id = o.id
         WHERE o.order_date BETWEEN :start AND :end
-        GROUP BY o.id, o.order_date, c.name, o.invoice_date
-        ORDER BY o.order_date DESC
+        GROUP BY o.id, o.order_date, c.name, o.invoice_date, o.invoices_due_in,
+                 o.write_off_voucher_id, pay.paid_date, dtd.d
+        ORDER BY o.order_date DESC, o.id DESC
     """
     return run_query(sql, {"start": start, "end": anchor_day})
+
+
+def get_receivables(year: int | None = None) -> pd.DataFrame:
+    """One row per invoiced order (invoice_date not later than the newest
+    generated date) with its derived status — the base for the Receivables
+    page, which aggregates it in pandas (≈2k rows; one round trip).
+
+    amount is GROSS (incl. VAT): that is what the customer owes and what a
+    write-off removes. due_date is the contractual date moved off a weekend
+    (same rule as the OVERDUE test); days_past_due is measured from it to the
+    newest generated date (negative = not yet due). paid_late: paid more than
+    7 days after the unadjusted due date (the generator's definition)."""
+    year_clause = "AND EXTRACT(YEAR FROM o.invoice_date) = :year" if year is not None else ""
+    sql = f"""
+        WITH {_INVOICE_STATUS_CTES},
+        due AS (
+            SELECT o.id AS order_id,
+                   o.invoice_date + o.invoices_due_in AS raw_due,
+                   o.invoice_date + o.invoices_due_in
+                     + CASE EXTRACT(ISODOW FROM o.invoice_date + o.invoices_due_in)
+                           WHEN 6 THEN 2 WHEN 7 THEN 1 ELSE 0 END AS due_date
+            FROM orders o
+        )
+        SELECT o.id AS order_id, c.name AS customer, o.invoice_date,
+               due.due_date, pay.paid_date,
+               SUM(ol.amount_currency) AS amount,
+               {_INVOICE_STATUS_CASE} AS invoice_status,
+               (dtd.d - due.due_date) AS days_past_due,
+               COALESCE(pay.paid_date > due.raw_due + 7, FALSE) AS paid_late
+        FROM orders o
+        JOIN customers c ON c.id = o.customer_id
+        JOIN order_lines ol ON ol.order_id = o.id
+        JOIN due ON due.order_id = o.id
+        CROSS JOIN data_today dtd
+        LEFT JOIN payments pay ON pay.order_id = o.id
+        WHERE o.invoice_date IS NOT NULL AND o.invoice_date <= dtd.d {year_clause}
+        GROUP BY o.id, c.name, o.invoice_date, due.due_date, due.raw_due, pay.paid_date,
+                 o.invoices_due_in, o.write_off_voucher_id, dtd.d
+        ORDER BY o.invoice_date, o.id
+    """
+    df = run_query(sql, {"year": year} if year is not None else None)
+    for col in ("invoice_date", "due_date", "paid_date"):
+        df[col] = pd.to_datetime(df[col])
+    df["amount"] = df["amount"].astype(float)
+    df["days_past_due"] = pd.to_numeric(df["days_past_due"].map(lambda d: getattr(d, "days", d)))
+    df["paid_late"] = df["paid_late"].astype(bool)
+    return df
+
+
+def get_write_offs_by_month(year: int | None = None) -> pd.DataFrame:
+    """Receivable write-offs (account 7830 "Tap på krav") per voucher month.
+    postings.amount is debit-positive, so a write-off is a positive number."""
+    year_clause = "AND EXTRACT(YEAR FROM v.date) = :year" if year is not None else ""
+    sql = f"""
+        SELECT DATE_TRUNC('month', v.date) AS period, SUM(p.amount) AS written_off
+        FROM vouchers v JOIN postings p ON p.voucher_id = v.id
+        WHERE p.account_number = 7830 {year_clause}
+        GROUP BY 1 ORDER BY 1
+    """
+    df = run_query(sql, {"year": year} if year is not None else None)
+    df["period"] = _to_naive_datetime(df["period"])
+    df["written_off"] = df["written_off"].astype(float)
+    return df
+
+
+# --- liquidity & financing (accounts 1910 bank, 2000/2290 financing, 8150 interest, 2700/2710/2740 VAT) ----
+# postings.amount is debit-positive / credit-negative (verified: 1910 nets to a
+# positive cash balance, 2000/2290/2740 to negative = credit balances).
+# Liabilities and equity are therefore shown as `-amount` to read as positive.
+
+def get_bank_balance_daily() -> pd.DataFrame:
+    """Cumulative bank (1910) balance at the end of every day that has a
+    posting, over the whole history — callers slice it by period so that the
+    running balance is never re-based by a year filter."""
+    sql = """
+        SELECT v.date AS day, SUM(p.amount) AS movement
+        FROM vouchers v JOIN postings p ON p.voucher_id = v.id
+        WHERE p.account_number = 1910
+        GROUP BY v.date ORDER BY v.date
+    """
+    df = run_query(sql)
+    df["day"] = pd.to_datetime(df["day"])
+    df["balance"] = df["movement"].astype(float).cumsum()
+    return df[["day", "balance"]]
+
+
+def get_owner_loan_monthly() -> pd.DataFrame:
+    """Per month: principal repaid (debits on 2290), interest (8150) and the
+    principal still outstanding at month end (credit balance on 2290, shown
+    positive). Months run continuously from the drawdown to the last month
+    with a loan posting, so the outstanding balance steps down cleanly."""
+    sql = """
+        SELECT DATE_TRUNC('month', v.date) AS period,
+               SUM(p.amount) FILTER (WHERE p.account_number = 2290) AS principal_net,
+               SUM(p.amount) FILTER (WHERE p.account_number = 2290 AND p.amount > 0) AS principal_repaid,
+               SUM(p.amount) FILTER (WHERE p.account_number = 8150) AS interest
+        FROM vouchers v JOIN postings p ON p.voucher_id = v.id
+        WHERE p.account_number IN (2290, 8150)
+        GROUP BY 1 ORDER BY 1
+    """
+    df = run_query(sql)
+    df["period"] = _to_naive_datetime(df["period"])
+    df = df.set_index("period").astype(float).fillna(0.0)
+    df = df.reindex(pd.date_range(df.index.min(), df.index.max(), freq="MS"), fill_value=0.0)
+    df["outstanding"] = (-df["principal_net"].cumsum()).round(2).abs()  # abs: kills -0.00 float dust
+    df.index.name = "period"
+    return df.reset_index()[["period", "principal_repaid", "interest", "outstanding"]]
+
+
+def get_financing_structure() -> dict:
+    """Initial financing: share capital (2000) vs owner-loan drawdown (credits
+    on 2290)."""
+    sql = """
+        SELECT -SUM(p.amount) FILTER (WHERE p.account_number = 2000) AS share_capital,
+               -SUM(p.amount) FILTER (WHERE p.account_number = 2290 AND p.amount < 0) AS owner_loan
+        FROM postings p WHERE p.account_number IN (2000, 2290)
+    """
+    row = run_query(sql).iloc[0]
+    return {"share_capital": float(row["share_capital"] or 0), "owner_loan": float(row["owner_loan"] or 0)}
+
+
+def get_vat_monthly() -> pd.DataFrame:
+    """Output VAT (2700, credits) vs input VAT (2710, debits) per month.
+    The two-monthly settlement vouchers clear both accounts into 2740, so they
+    are excluded — otherwise every term-end month would net to ~0."""
+    sql = """
+        SELECT DATE_TRUNC('month', v.date) AS period,
+               -SUM(p.amount) FILTER (WHERE p.account_number = 2700) AS output_vat,
+               SUM(p.amount) FILTER (WHERE p.account_number = 2710) AS input_vat
+        FROM vouchers v JOIN postings p ON p.voucher_id = v.id
+        WHERE p.account_number IN (2700, 2710)
+          AND v.id NOT IN (SELECT voucher_id FROM vat_settlements)
+        GROUP BY 1 ORDER BY 1
+    """
+    df = run_query(sql)
+    df["period"] = _to_naive_datetime(df["period"])
+    for col in ("output_vat", "input_vat"):
+        df[col] = df[col].astype(float).fillna(0.0)
+    return df
+
+
+def get_vat_settlements() -> pd.DataFrame:
+    """Two-monthly VAT returns. balance = output - input: > 0 is paid to the
+    tax authority (a credit on 2740 until the bank payment), < 0 is refunded."""
+    sql = """
+        SELECT vs.period_year || '-T' || vs.term AS term, vs.period_start, vs.period_end,
+               vs.output_vat, vs.input_vat, vs.balance, vs.payment_date, vs.status
+        FROM vat_settlements vs ORDER BY vs.period_end
+    """
+    df = run_query(sql)
+    for col in ("period_start", "period_end", "payment_date"):
+        df[col] = pd.to_datetime(df[col])
+    for col in ("output_vat", "input_vat", "balance"):
+        df[col] = df[col].astype(float)
+    return df
+
+
+def get_cogs_payables() -> pd.DataFrame:
+    """COGS pass-through liabilities (accounts 4291/4292), one row per monthly
+    accrual: net, VAT and gross amounts, due date, status and the bank payment
+    date (NULL while unpaid)."""
+    sql = """
+        SELECT cp.id AS payable_id, cp.accrual_date, cp.payment_due_date, s.name AS supplier,
+               cp.account_number, cp.description,
+               cp.amount_excluding_vat_currency AS amount_net, cp.vat_amount_currency AS vat_amount,
+               cp.amount_currency AS amount_gross, cp.status, b.date AS paid_date
+        FROM cogs_payables cp
+        JOIN suppliers s ON s.id = cp.supplier_id
+        LEFT JOIN bank_transactions b ON b.cogs_payable_id = cp.id AND b.transaction_type = 'OUTGOING'
+        ORDER BY cp.accrual_date DESC, cp.id DESC
+    """
+    df = run_query(sql)
+    for col in ("accrual_date", "payment_due_date", "paid_date"):
+        df[col] = pd.to_datetime(df[col])
+    for col in ("amount_net", "vat_amount", "amount_gross"):
+        df[col] = df[col].astype(float)
+    return df
+
+
+# --- profitability (step D) -------------------------------------------------
+# Cost postings carry no customer_id (0% tagged), so per-customer cost is a
+# MODEL, not a ledger fact:
+#   * direct labor  = billable hours on the customer's projects x the employee's
+#     loaded cost per hour. The month's ledger labor (accounts 5000-5999) is
+#     split over employees by their share of that month's payslips, then divided
+#     by the employee's billable+internal hours — so the allocation always ties
+#     back to the ledger and never invents salary data.
+#   * COGS (4291/4292 pass-through) = allocated pro rata to revenue: monthly COGS
+#     tracks no single product (checked), so there is nothing finer to key on.
+# Not allocated: equipment purchases (4290), operating costs, and non-billable
+# (internal) hours — the result is a contribution margin, not a net margin.
+
+def _full_month_range(year: int | None) -> tuple[dt.date, dt.date]:
+    start = dt.date(year, 1, 1) if year else get_date_bounds()[0]
+    end = dt.date(year, 12, 31) if year else get_date_bounds()[1]
+    return exclude_partial_months((start, end))
+
+
+def get_customer_profitability(year: int | None = None) -> pd.DataFrame:
+    """One row per customer for full months in the period: revenue, allocated
+    COGS, direct labor (see the model note above), billable hours."""
+    start, end = _full_month_range(year)
+    sql = """
+        WITH rev AS (
+            SELECT o.customer_id, SUM(ol.amount_excluding_vat_currency) AS revenue
+            FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+            WHERE o.order_date BETWEEN :start AND :end GROUP BY 1
+        ),
+        cogs AS (
+            SELECT COALESCE(SUM(p.amount), 0) AS total
+            FROM postings p JOIN vouchers v ON v.id = p.voucher_id
+            WHERE p.account_number IN (4291, 4292) AND v.date BETWEEN :start AND :end
+        ),
+        labor_m AS (
+            SELECT DATE_TRUNC('month', v.date) AS m, SUM(p.amount) AS l
+            FROM postings p JOIN vouchers v ON v.id = p.voucher_id
+            WHERE p.account_number BETWEEN 5000 AND 5999 AND v.date BETWEEN :start AND :end GROUP BY 1
+        ),
+        pay AS (
+            SELECT employee_id, DATE_TRUNC('month', date) AS m, SUM(amount) AS a
+            FROM payslips WHERE date BETWEEN :start AND :end GROUP BY 1, 2
+        ),
+        paytot AS (SELECT m, SUM(a) AS t FROM pay GROUP BY m),
+        hrs AS (
+            SELECT employee_id, DATE_TRUNC('month', date) AS m, SUM(hours) AS tot
+            FROM hour_entries
+            WHERE activity_type IN ('BILLABLE', 'INTERNAL') AND date BETWEEN :start AND :end GROUP BY 1, 2
+        ),
+        lab AS (
+            SELECT pr.customer_id,
+                   SUM(he.hours * lm.l * pay.a / paytot.t / NULLIF(hrs.tot, 0)) AS labor_cost,
+                   SUM(he.hours) AS billable_hours
+            FROM hour_entries he
+            JOIN projects pr ON pr.id = he.project_id
+            JOIN pay ON pay.employee_id = he.employee_id AND pay.m = DATE_TRUNC('month', he.date)
+            JOIN paytot ON paytot.m = pay.m
+            JOIN labor_m lm ON lm.m = pay.m
+            JOIN hrs ON hrs.employee_id = he.employee_id AND hrs.m = pay.m
+            WHERE he.activity_type = 'BILLABLE' AND he.date BETWEEN :start AND :end
+            GROUP BY 1
+        )
+        SELECT c.name AS customer, COALESCE(rev.revenue, 0) AS revenue, COALESCE(lab.labor_cost, 0) AS labor_cost,
+               COALESCE(lab.billable_hours, 0) AS billable_hours, cogs.total AS cogs_total
+        FROM customers c
+        CROSS JOIN cogs
+        LEFT JOIN rev ON rev.customer_id = c.id
+        LEFT JOIN lab ON lab.customer_id = c.id
+        WHERE rev.revenue IS NOT NULL OR lab.labor_cost IS NOT NULL
+    """
+    df = run_query(sql, {"start": start, "end": end})
+    for col in ("revenue", "labor_cost", "billable_hours", "cogs_total"):
+        df[col] = df[col].astype(float)
+    total_rev = df["revenue"].sum()
+    df["cogs_alloc"] = df["cogs_total"] * df["revenue"] / total_rev if total_rev else 0.0
+    df = df.drop(columns="cogs_total")
+    df["contribution"] = df["revenue"] - df["cogs_alloc"] - df["labor_cost"]
+    df["contribution_pct"] = df["contribution"] / df["revenue"].where(df["revenue"] > 0) * 100
+    df["revenue_per_hour"] = df["revenue"] / df["billable_hours"].where(df["billable_hours"] > 0)
+    return df.sort_values("contribution", ascending=False).reset_index(drop=True)
+
+
+def get_employee_utilization(year: int | None = None) -> pd.DataFrame:
+    """Billable vs internal hours per employee (all employees, including those
+    with no hours). Utilisation = billable / (billable + internal). Invoices
+    are fixed monthly lines, not hours, so there is no "billed hours" figure
+    per employee to compare against."""
+    where_sql, params = ("AND EXTRACT(YEAR FROM he.date) = :year", {"year": year}) if year else ("", None)
+    sql = f"""
+        SELECT e.first_name || ' ' || e.last_name AS employee, COALESCE(d.name, 'Unassigned') AS department,
+               COALESCE(SUM(he.hours) FILTER (WHERE he.activity_type = 'BILLABLE'), 0) AS billable_hours,
+               COALESCE(SUM(he.hours) FILTER (WHERE he.activity_type = 'INTERNAL'), 0) AS internal_hours
+        FROM employees e
+        LEFT JOIN departments d ON d.id = e.department_id
+        LEFT JOIN hour_entries he ON he.employee_id = e.id {where_sql}
+        GROUP BY e.id, employee, d.name
+        ORDER BY billable_hours DESC
+    """
+    df = run_query(sql, params)
+    for col in ("billable_hours", "internal_hours"):
+        df[col] = df[col].astype(float)
+    total = df["billable_hours"] + df["internal_hours"]
+    df["utilization_pct"] = df["billable_hours"] / total.where(total > 0) * 100
+    return df
+
+
+def get_cost_by_category_monthly() -> pd.DataFrame:
+    """Monthly cost by category (ledger, debit-positive): pass-through COGS
+    (4291/4292), equipment cash purchases (4290), labor (5xxx) and operating
+    cost (6000-7999, including 7830 write-offs)."""
+    sql = """
+        SELECT DATE_TRUNC('month', v.date) AS period,
+               SUM(p.amount) FILTER (WHERE p.account_number IN (4291, 4292)) AS cogs_passthrough,
+               SUM(p.amount) FILTER (WHERE p.account_number = 4290) AS equipment,
+               SUM(p.amount) FILTER (WHERE p.account_number BETWEEN 5000 AND 5999) AS labor,
+               SUM(p.amount) FILTER (WHERE p.account_number BETWEEN 6000 AND 7999) AS operating
+        FROM vouchers v JOIN postings p ON p.voucher_id = v.id
+        WHERE p.account_number BETWEEN 4000 AND 7999
+        GROUP BY 1 ORDER BY 1
+    """
+    df = run_query(sql)
+    df["period"] = _to_naive_datetime(df["period"])
+    cats = ["cogs_passthrough", "equipment", "labor", "operating"]
+    df[cats] = df[cats].astype(float).fillna(0.0)
+    return df

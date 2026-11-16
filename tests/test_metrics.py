@@ -131,3 +131,131 @@ def test_get_client_summary_has_no_cost_profit_margin_columns():
         assert forbidden not in summary.columns
     assert set(summary.columns) >= {"name", "sector", "size_band", "revenue", "order_count"}
     assert summary.loc[summary["name"] == "Acme AS", "revenue"].iloc[0] == 10000.0
+
+
+# --- open (partial) month handling -----------------------------------------
+
+def _with_partial(months):
+    return patch.object(metrics, "get_partial_month_starts", return_value=months)
+
+
+def test_exclude_partial_months_trims_range_end_to_last_full_month():
+    with _with_partial([dt.date(2026, 11, 1)]):
+        out = metrics.exclude_partial_months((dt.date(2026, 1, 1), dt.date(2026, 11, 16)))
+    assert out == (dt.date(2026, 1, 1), dt.date(2026, 10, 31))
+
+
+def test_exclude_partial_months_leaves_closed_range_alone():
+    rng = (dt.date(2025, 1, 1), dt.date(2025, 12, 31))
+    with _with_partial([dt.date(2026, 11, 1)]):
+        assert metrics.exclude_partial_months(rng) == rng
+
+
+def test_exclude_partial_months_noop_without_open_month():
+    rng = (dt.date(2026, 1, 1), dt.date(2026, 11, 30))
+    with _with_partial([]):
+        assert metrics.exclude_partial_months(rng) == rng
+
+
+def test_exclude_partial_months_range_entirely_in_open_month_is_unchanged():
+    rng = (dt.date(2026, 11, 2), dt.date(2026, 11, 16))
+    with _with_partial([dt.date(2026, 11, 1)]):
+        assert metrics.exclude_partial_months(rng) == rng
+
+
+def test_exclude_partial_months_none_means_all_time_up_to_last_full_month():
+    with _with_partial([dt.date(2026, 11, 1)]), patch.object(
+        metrics, "get_date_bounds", return_value=(dt.date(2020, 1, 1), dt.date(2026, 11, 16))
+    ):
+        assert metrics.exclude_partial_months(None) == (dt.date(2020, 1, 1), dt.date(2026, 10, 31))
+
+
+def test_partial_months_in_range_overlap():
+    with _with_partial([dt.date(2026, 11, 1)]):
+        assert metrics.get_partial_months_in_range((dt.date(2026, 1, 1), dt.date(2026, 11, 16))) == [dt.date(2026, 11, 1)]
+        assert metrics.get_partial_months_in_range((dt.date(2025, 1, 1), dt.date(2025, 12, 31))) == []
+
+
+# --- receivables ------------------------------------------------------------
+
+def test_get_receivables_normalises_types():
+    raw = pd.DataFrame({
+        "order_id": [1], "customer": ["A"], "invoice_date": ["2026-01-02"], "due_date": ["2026-02-02"],
+        "paid_date": [None], "amount": ["125.00"], "invoice_status": ["OVERDUE"],
+        "days_past_due": [dt.timedelta(days=5)], "paid_late": [None],
+    })
+    with patch.object(metrics, "run_query", return_value=raw):
+        df = metrics.get_receivables(2026)
+    assert df["amount"].dtype == float
+    assert df["days_past_due"].iloc[0] == 5
+    assert df["paid_late"].dtype == bool and not df["paid_late"].iloc[0]
+    assert pd.api.types.is_datetime64_any_dtype(df["invoice_date"])
+
+
+def test_get_write_offs_by_month_passes_year_param():
+    raw = pd.DataFrame({"period": [pd.Timestamp("2026-01-01")], "written_off": ["41616.79"]})
+    with patch.object(metrics, "run_query", return_value=raw) as rq:
+        df = metrics.get_write_offs_by_month(2026)
+    assert rq.call_args.args[1] == {"year": 2026}
+    assert df["written_off"].iloc[0] == pytest.approx(41616.79)
+
+
+# --- liquidity & financing --------------------------------------------------
+
+def test_bank_balance_is_cumulative_from_first_posting():
+    raw = pd.DataFrame({"day": ["2019-01-02", "2019-01-03"], "movement": ["100.00", "-30.00"]})
+    with patch.object(metrics, "run_query", return_value=raw):
+        df = metrics.get_bank_balance_daily()
+    assert df["balance"].tolist() == [100.0, 70.0]
+
+
+def test_owner_loan_outstanding_steps_down_and_never_negative():
+    # drawdown is a credit (negative), instalments debits (positive)
+    raw = pd.DataFrame({
+        "period": [pd.Timestamp("2021-01-01"), pd.Timestamp("2021-03-01"), pd.Timestamp("2021-04-01")],
+        "principal_net": [-300.0, 100.0, 200.0 + 1e-9],
+        "principal_repaid": [None, 100.0, 200.0 + 1e-9],
+        "interest": [5.0, 3.0, 1.0],
+    })
+    with patch.object(metrics, "run_query", return_value=raw):
+        df = metrics.get_owner_loan_monthly()
+    assert df["period"].tolist() == list(pd.date_range("2021-01-01", "2021-04-01", freq="MS"))  # gap month filled
+    assert df["outstanding"].tolist() == [300.0, 300.0, 200.0, 0.0]
+    assert (df["outstanding"] >= 0).all()
+
+
+def test_financing_structure_shows_credits_as_positive():
+    raw = pd.DataFrame({"share_capital": ["500000"], "owner_loan": ["3500000"]})
+    with patch.object(metrics, "run_query", return_value=raw):
+        assert metrics.get_financing_structure() == {"share_capital": 500000.0, "owner_loan": 3500000.0}
+
+
+# --- profitability ----------------------------------------------------------
+
+def _prof_raw():
+    return pd.DataFrame({
+        "customer": ["A", "B", "C"], "revenue": ["600", "400", "0"], "labor_cost": ["100", "500", "50"],
+        "billable_hours": ["10", "20", "0"], "cogs_total": ["200", "200", "200"],
+    })
+
+
+def test_customer_profitability_allocates_cogs_pro_rata_to_revenue():
+    with patch.object(metrics, "_full_month_range", return_value=(dt.date(2026, 1, 1), dt.date(2026, 10, 31))), \
+         patch.object(metrics, "run_query", return_value=_prof_raw()):
+        df = metrics.get_customer_profitability(2026).set_index("customer")
+    assert df["cogs_alloc"].sum() == pytest.approx(200.0)
+    assert df.loc["A", "cogs_alloc"] == pytest.approx(120.0)
+    assert df.loc["A", "contribution"] == pytest.approx(600 - 120 - 100)
+    assert df.loc["B", "contribution"] < 0  # labor outweighs revenue
+    assert pd.isna(df.loc["C", "contribution_pct"]) and pd.isna(df.loc["C", "revenue_per_hour"])
+
+
+def test_employee_utilization_handles_zero_hours():
+    raw = pd.DataFrame({
+        "employee": ["X", "Y"], "department": ["D", "D"],
+        "billable_hours": ["30", "0"], "internal_hours": ["70", "0"],
+    })
+    with patch.object(metrics, "run_query", return_value=raw):
+        df = metrics.get_employee_utilization()
+    assert df["utilization_pct"].iloc[0] == pytest.approx(30.0)
+    assert pd.isna(df["utilization_pct"].iloc[1])
