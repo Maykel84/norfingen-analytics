@@ -82,13 +82,17 @@ def render(lang: str, theme: str) -> None:
         status_df = status_df.copy()
         yes, no = t("yes", lang), t("no", lang)
         status_df["invoiced"] = status_df["invoiced"].map({True: yes, False: no})
-        status_df["paid"] = status_df["paid"].map({True: yes, False: no})
+        status_labels = {
+            "PAID": t("inv_paid", lang), "OPEN": t("inv_open", lang),
+            "OVERDUE": t("inv_overdue", lang), "WRITTEN_OFF": t("inv_written_off", lang),
+        }
+        status_df["invoice_status"] = status_df["invoice_status"].map(status_labels)
         status_df["amount"] = status_df["amount"].map(format_currency)
         table = status_df.rename(
             columns={
                 "order_date": t("event_date", lang), "customer": t("company", lang), "amount": t("revenue", lang),
-                "invoiced": t("invoiced", lang), "paid": t("paid", lang),
+                "invoiced": t("invoiced", lang), "invoice_status": t("invoice_status", lang),
             }
         )
-        table = table[[t("event_date", lang), t("company", lang), t("revenue", lang), t("invoiced", lang), t("paid", lang)]]
+        table = table[[t("event_date", lang), t("company", lang), t("revenue", lang), t("invoiced", lang), t("invoice_status", lang)]]
         st.dataframe(table, use_container_width=True, hide_index=True)

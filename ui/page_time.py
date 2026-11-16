@@ -3,10 +3,12 @@ import datetime as dt
 import pandas as pd
 import streamlit as st
 
-from semantic.metrics import get_companies, get_date_bounds, get_measure
+from semantic.metrics import (
+    exclude_partial_months, get_companies, get_date_bounds, get_measure, get_partial_months_in_range,
+)
 from semantic.schema import MEASURES
 from ui.charts import bar_breakdown, line_over_time, measure_color
-from ui.components import format_currency, format_delta_pct, format_int, format_pct, kpi_tile, segmented_control
+from ui.components import format_currency, format_delta_pct, format_int, format_pct, kpi_tile, partial_month_caption, segmented_control
 from ui.i18n import t, t_sector
 
 FORMATTERS = {
@@ -100,12 +102,16 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
 
     st.write("")
     with st.spinner(t("loading_data", lang)):
-        totals = get_measure("profit", group_by=[], date_range=date_range_param, filters=filters)
+        # KPI totals stop at the last full month (open month has revenue, not costs yet).
+        totals = get_measure("profit", group_by=[], date_range=exclude_partial_months(date_range_param), filters=filters)
         kpi_cols = st.columns(len(selected_measures))
         for i, m in enumerate(selected_measures):
             value = totals[m].iloc[0] if m in totals.columns and not totals.empty else None
             with kpi_cols[i]:
                 kpi_tile(t(m, lang), FORMATTERS.get(m, str)(value) if value is not None else "—", theme)
+
+        open_months = get_partial_months_in_range(date_range_param)
+        partial_month_caption(open_months, lang, excluded=True)
 
         st.write("")
         st.markdown(f'<div class="section-label">{t("over_time", lang)}</div>', unsafe_allow_html=True)
@@ -120,8 +126,12 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
                 ts_df.sort_values("period"), "period", y_col, None, t(m, lang), theme,
                 x_title=t(granularity, lang), y_title=t(m, lang), granularity=granularity,
                 line_color=measure_color(m, theme),
+                partial_periods=open_months if granularity == "month" and m in ("cost", "profit", "margin_pct") else None,
+                partial_label=t("partial_month_label", lang),
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        if granularity == "month" and any(m in ("cost", "profit", "margin_pct") for m in selected_measures):
+            partial_month_caption(open_months, lang)
 
         if group_by:
             st.write("")
@@ -193,8 +203,8 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         isinstance(period_a, tuple) and len(period_a) == 2
         and isinstance(period_b, tuple) and len(period_b) == 2
     ):
-        totals_a = get_measure("profit", group_by=[], date_range=period_a, filters=filters)
-        totals_b = get_measure("profit", group_by=[], date_range=period_b, filters=filters)
+        totals_a = get_measure("profit", group_by=[], date_range=exclude_partial_months(period_a), filters=filters)
+        totals_b = get_measure("profit", group_by=[], date_range=exclude_partial_months(period_b), filters=filters)
         cols = st.columns(len(selected_measures))
         for i, m in enumerate(selected_measures):
             val_a = totals_a[m].iloc[0] if m in totals_a.columns and not totals_a.empty else None

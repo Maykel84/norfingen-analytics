@@ -3,9 +3,11 @@ import datetime as dt
 import pandas as pd
 import streamlit as st
 
-from semantic.metrics import get_city_density, get_monthly_trend_for_year, get_multi_year_trend, get_yearly_totals
+from semantic.metrics import (
+    get_city_density, get_monthly_trend_for_year, get_multi_year_trend, get_partial_months_in_range, get_yearly_totals,
+)
 from ui.charts import coverage_map, line_over_time
-from ui.components import format_currency, format_pct, kpi_tile
+from ui.components import format_currency, format_pct, kpi_tile, partial_month_caption
 from ui.i18n import t
 
 
@@ -34,6 +36,7 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             kpi_tile(t("margin_pct", lang), format_pct(totals["margin_pct"]), theme)
         with cols[4]:
             kpi_tile(t("client_count", lang), f"{totals['company_count']:,}", theme)
+        partial_month_caption(get_partial_months_in_range(date_range), lang, excluded=True)
 
         st.write("")
         trend_col, map_col = st.columns([3, 2])
@@ -56,9 +59,13 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
                 fig = line_over_time(
                     melted, "period", "value", measure_col, "", theme, value_suffix=" kr",
                     x_title=t(chart_granularity, lang), y_title=t("amount", lang), granularity=chart_granularity,
+                    partial_periods=get_partial_months_in_range(date_range) if chart_granularity == "month" else None,
+                    partial_label=t("partial_month_label", lang),
                 )
                 fig.update_layout(height=420)
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+                if chart_granularity == "month":
+                    partial_month_caption(get_partial_months_in_range(date_range), lang)
 
         with map_col:
             st.markdown(f'<div class="section-label">{t("coverage", lang)}</div>', unsafe_allow_html=True)

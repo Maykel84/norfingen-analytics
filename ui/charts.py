@@ -61,6 +61,10 @@ def measure_color(measure: str, theme: str) -> str:
     measure, consistent with how it's colored when plotted alongside others."""
     return CATEGORICAL[theme][MEASURE_COLOR_INDEX.get(measure, 0)]
 
+from ui.theme import (  # noqa: E402  (optional preview palette; identity unless NORFINGEN_PALETTE is set)
+    PALETTE, PREVIEW_CATEGORICAL, PREVIEW_CHROME, PREVIEW_SEQUENTIAL, PREVIEW_SEQUENTIAL_WARM,
+)
+
 CHROME = {
     "light": {
         "surface": "#faf7f1",
@@ -80,7 +84,14 @@ CHROME = {
     },
 }
 
+if PALETTE == "orchid-cobalt":
+    CATEGORICAL = PREVIEW_CATEGORICAL
+    SEQUENTIAL = PREVIEW_SEQUENTIAL
+    SEQUENTIAL_WARM = PREVIEW_SEQUENTIAL_WARM
+    CHROME = PREVIEW_CHROME
+
 FONT_FAMILY = "Inter, 'IBM Plex Sans', system-ui, -apple-system, sans-serif"
+
 
 
 def _base_layout(theme: str, title: str) -> dict:
@@ -161,7 +172,7 @@ _GRANULARITY_TICK_FORMAT = {
 
 
 def _apply_granularity_ticks(
-    fig: go.Figure, df: pd.DataFrame, x_col: str, granularity: str | None, max_ticks: int = 10,
+    fig: go.Figure, df: pd.DataFrame, x_col: str, granularity: str | None, max_ticks: int = 12,
 ) -> None:
     """Explicit tick positions/labels keyed to the query granularity, instead
     of relying on Plotly's automatic date-tick formatter. That auto-formatter
@@ -220,8 +231,10 @@ def line_over_time(
     df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str,
     value_suffix: str = "", fill: bool = False, x_title: str | None = None, y_title: str | None = None,
     granularity: str | None = None, line_color: str | None = None,
+    partial_periods: list | None = None, partial_label: str | None = None,
 ) -> go.Figure:
-    """x_title/y_title: translated axis labels — pass these rather than
+    """partial_periods: month-start dates still in progress — shaded band + label.
+    x_title/y_title: translated axis labels — pass these rather than
     relying on the raw column name (e.g. "period") ever reaching the UI.
     granularity: "day"/"week"/"month"/"quarter"/"year" — when given, pins
     explicit tick labels instead of Plotly's auto date formatter (see
@@ -247,6 +260,66 @@ def line_over_time(
     _style_axes(fig, theme, x_title=x_title, y_title=y_title)
     _apply_granularity_ticks(fig, df, x, granularity)
     _stabilize_flat_yaxis(fig, df, y)
+    if partial_periods:
+        _mark_partial_periods(fig, df, x, partial_periods, partial_label, theme)
+    return fig
+
+
+def _mark_partial_periods(fig: go.Figure, df: pd.DataFrame, x_col: str, partial_periods, label, theme: str) -> None:
+    """Shade the open month so its (cost-less) point is not read as a result.
+    A month point sits at the 1st of the month; the band spans the whole month
+    but only when that bucket is actually on the chart (month granularity)."""
+    present = set(pd.to_datetime(df[x_col]).dt.normalize())
+    for p in partial_periods:
+        start = pd.Timestamp(p)
+        if start not in present:
+            continue
+        end = start + pd.offsets.MonthBegin(1)
+        fig.add_vrect(
+            x0=start - pd.Timedelta(days=4), x1=end - pd.Timedelta(days=4),
+            fillcolor=CHROME[theme]["muted"], opacity=0.18, line_width=0, layer="below",
+            annotation_text=label or "", annotation_position="top left",
+            annotation_font=dict(size=11, color=CHROME[theme]["muted"]),
+        )
+
+
+def donut_chart(
+    labels: list[str], values: list[float], colors: list[str], theme: str, center_text: str = "",
+    customdata: list[str] | None = None,
+) -> go.Figure:
+    """Status donut. customdata (e.g. "1,862 invoices") is shown in the hover
+    next to the amount; slices stay in the order given so colors stay stable."""
+    c = CHROME[theme]
+    fig = go.Figure(go.Pie(
+        labels=labels, values=values, hole=0.62, sort=False, direction="clockwise",
+        marker=dict(colors=colors, line=dict(color=c["surface"], width=2)),
+        customdata=customdata, textinfo="none",
+        hovertemplate="%{label}<br>%{value:,.0f} kr<br>%{customdata}<extra></extra>" if customdata else None,
+    ))
+    fig.update_layout(**_base_layout(theme, ""))
+    fig.update_layout(height=380, showlegend=True, margin=dict(l=10, r=10, t=10, b=10))
+    if center_text:
+        fig.add_annotation(text=center_text, x=0.5, y=0.5, showarrow=False, font=dict(size=16, color=c["text_primary"]))
+    return fig
+
+
+def stacked_bar_over_time(
+    df: pd.DataFrame, x: str, series: dict[str, str], theme: str, value_suffix: str = " kr",
+    x_title: str | None = None, y_title: str | None = None, granularity: str | None = "month",
+) -> go.Figure:
+    """Stacked bars over time. series maps df column -> legend label, stacked
+    in the order given, colored from the validated categorical palette."""
+    # same overflow rule as stacked_area(): 3 validated hues, a 4th+ series is neutral gray
+    palette = list(CATEGORICAL[theme]) + [CHROME[theme]["muted"]] * max(0, len(series) - len(CATEGORICAL[theme]))
+    fig = go.Figure()
+    for i, (col, label) in enumerate(series.items()):
+        fig.add_bar(
+            x=df[x], y=df[col], name=label, marker_color=palette[i], marker_line_width=0,
+            hovertemplate=f"{label}: %{{y:,.0f}}{value_suffix}<extra></extra>",
+        )
+    fig.update_layout(**_base_layout(theme, ""), barmode="stack")
+    _style_axes(fig, theme, x_title=x_title, y_title=y_title)
+    _apply_granularity_ticks(fig, df, x, granularity)
     return fig
 
 

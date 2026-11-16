@@ -1,3 +1,5 @@
+import datetime as dt
+
 """Reusable UI pieces: nav shell, KPI tiles, year switcher, segmented control,
 client cards. Built against the tokens in ui/theme.py.
 """
@@ -54,6 +56,21 @@ def kpi_tile(label: str, value: str, theme: str, delta: str | None = None, spark
         positive = spark_values.iloc[-1] >= spark_values.iloc[0]
         fig = sparkline(spark_values, theme, positive=positive)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=f"spark_{label}")
+
+
+def partial_month_caption(partial_months: list, lang: str, excluded: bool = False) -> None:
+    """One-line note under a chart/KPI row when the open month is involved.
+    excluded=True: KPIs above leave the open month out; False: chart shows it."""
+    if not partial_months:
+        return
+    from ui.i18n import t
+
+    label = partial_months[-1].strftime("%Y-%m")
+    if excluded:
+        full = (partial_months[0] - dt.timedelta(days=1)).strftime("%Y-%m")
+        st.caption(f"ℹ️ {t('partial_month_excluded', lang).format(month=full)}")
+    else:
+        st.caption(f"ℹ️ {t('partial_month_note', lang).format(month=label)}")
 
 
 def nav_bar(
