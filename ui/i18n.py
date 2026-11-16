@@ -2,7 +2,7 @@
 
 LANGUAGES = {"en": "English", "pl": "Polski", "no": "Norsk"}
 
-NAV_ITEMS = ["today", "overview", "time", "clients", "operations"]
+NAV_ITEMS = ["today", "overview", "time", "clients", "receivables", "liquidity", "profitability", "operations"]
 
 TRANSLATIONS = {
     "app_title": {
@@ -51,6 +51,121 @@ TRANSLATIONS = {
     "nav_time": {"en": "Time Analysis", "pl": "Analiza czasowa", "no": "Tidsanalyse"},
     "nav_clients": {"en": "Clients", "pl": "Klienci", "no": "Kunder"},
     "nav_operations": {"en": "Operations", "pl": "Operacje", "no": "Drift"},
+    "nav_receivables": {"en": "Receivables", "pl": "Należności", "no": "Fordringer"},
+    "nav_liquidity": {"en": "Liquidity", "pl": "Płynność", "no": "Likviditet"},
+    "nav_profitability": {"en": "Profitability", "pl": "Rentowność", "no": "Lønnsomhet"},
+    # Profitability page
+    "prf_customers": {"en": "Customer profitability", "pl": "Rentowność klientów", "no": "Kundelønnsomhet"},
+    "prf_method_note": {
+        "en": "Contribution = revenue − pass-through COGS (4291/4292, allocated pro rata to revenue) − direct labor "
+              "(billable hours × loaded hourly cost, tied to ledger labor). Cost postings carry no customer, so this is "
+              "a model. Not included: equipment (4290), operating costs, internal hours. Full months only.",
+        "pl": "Wkład = przychód − COGS przelotowy (4291/4292, rozdzielony proporcjonalnie do przychodu) − bezpośrednia "
+              "praca (godziny fakturowalne × pełny koszt godziny, zgodny z księgą). Księgowania kosztów nie mają klienta, "
+              "więc to model. Nie uwzględnia: sprzętu (4290), kosztów operacyjnych, godzin wewnętrznych. Tylko pełne miesiące.",
+        "no": "Bidrag = inntekt − gjennomstrømmings-COGS (4291/4292, fordelt forholdsmessig etter inntekt) − direkte arbeid "
+              "(fakturerbare timer × fullt timekostnad, avstemt mot hovedbok). Kostnadsposteringer har ingen kunde, så dette "
+              "er en modell. Ikke med: utstyr (4290), driftskostnader, interne timer. Kun hele måneder.",
+    },
+    "prf_cogs_alloc": {"en": "COGS (allocated)", "pl": "COGS (rozdzielony)", "no": "COGS (fordelt)"},
+    "prf_labor": {"en": "Direct labor", "pl": "Praca bezpośrednia", "no": "Direkte arbeid"},
+    "prf_contribution": {"en": "Contribution", "pl": "Wkład", "no": "Bidrag"},
+    "prf_contribution_pct": {"en": "Contribution %", "pl": "Wkład %", "no": "Bidrag %"},
+    "prf_billable_hours": {"en": "Billable hours", "pl": "Godziny fakturowalne", "no": "Fakturerbare timer"},
+    "prf_internal_hours": {"en": "Internal hours", "pl": "Godziny wewnętrzne", "no": "Interne timer"},
+    "prf_revenue_per_hour": {"en": "Revenue / billable hour", "pl": "Przychód / godz. fakturowalna", "no": "Inntekt / fakturerbar time"},
+    "prf_top_contribution": {"en": "Top 15 customers by contribution", "pl": "Top 15 klientów wg wkładu", "no": "Topp 15 kunder etter bidrag"},
+    "prf_utilization": {"en": "Utilization per employee", "pl": "Wykorzystanie czasu per pracownik", "no": "Utnyttelse per ansatt"},
+    "prf_utilization_pct": {"en": "Utilization %", "pl": "Wykorzystanie %", "no": "Utnyttelse %"},
+    "prf_utilization_note": {
+        "en": "Utilization = billable ÷ (billable + internal) hours. Invoices are fixed monthly lines, not hours, so there is no billed-hours figure per employee to compare against.",
+        "pl": "Wykorzystanie = godziny fakturowalne ÷ (fakturowalne + wewnętrzne). Faktury to stałe miesięczne pozycje, nie godziny, więc nie ma fakturowanych godzin per pracownik do porównania.",
+        "no": "Utnyttelse = fakturerbare ÷ (fakturerbare + interne) timer. Fakturaer er faste månedslinjer, ikke timer, så det finnes ingen fakturerte timer per ansatt å sammenligne med.",
+    },
+    "prf_cost_by_category": {"en": "Cost by category per month", "pl": "Koszty wg kategorii miesięcznie", "no": "Kostnad per kategori per måned"},
+    "prf_cat_cogs": {"en": "Pass-through COGS (4291/4292)", "pl": "COGS przelotowy (4291/4292)", "no": "Gjennomstrømmings-COGS (4291/4292)"},
+    "prf_cat_equipment": {"en": "Equipment, cash purchases (4290)", "pl": "Sprzęt, zakupy gotówkowe (4290)", "no": "Utstyr, kontantkjøp (4290)"},
+    "prf_cat_labor": {"en": "Labor (5xxx)", "pl": "Wynagrodzenia (5xxx)", "no": "Lønn (5xxx)"},
+    "prf_cat_operating": {"en": "Operating cost (6000–7999)", "pl": "Koszty operacyjne (6000–7999)", "no": "Driftskostnader (6000–7999)"},
+    "prf_cost_note": {
+        "en": "Payroll and COGS are booked at month end, so the month in progress shows only part of its costs.",
+        "pl": "Wynagrodzenia i COGS są księgowane na koniec miesiąca, więc miesiąc w toku pokazuje tylko część kosztów.",
+        "no": "Lønn og COGS bokføres ved månedsslutt, så måneden som pågår viser bare deler av kostnadene.",
+    },
+    # Liquidity & financing page
+    "liq_bank_balance": {"en": "Bank balance", "pl": "Saldo bankowe", "no": "Banksaldo"},
+    "liq_min_balance": {"en": "Lowest balance", "pl": "Najniższe saldo", "no": "Laveste saldo"},
+    "liq_on": {"en": "on", "pl": "w dniu", "no": "den"},
+    "liq_bank_title": {"en": "Bank balance (month end)", "pl": "Saldo bankowe (koniec miesiąca)", "no": "Banksaldo (månedsslutt)"},
+    "liq_min_marker": {"en": "Lowest day", "pl": "Najniższy dzień", "no": "Laveste dag"},
+    "liq_loan_outstanding": {"en": "Owner loan outstanding", "pl": "Pożyczka od właściciela — saldo", "no": "Eierlån — utestående"},
+    "liq_loan_section": {"en": "Owner loan", "pl": "Pożyczka od właściciela", "no": "Eierlån"},
+    "liq_principal_repaid": {"en": "Principal repaid", "pl": "Spłacony kapitał", "no": "Betalt avdrag"},
+    "liq_interest": {"en": "Interest", "pl": "Odsetki", "no": "Renter"},
+    "liq_principal_vs_interest": {"en": "Principal vs interest per month", "pl": "Kapitał vs odsetki miesięcznie", "no": "Avdrag og renter per måned"},
+    "liq_financing_structure": {"en": "Financing structure at start", "pl": "Struktura finansowania na starcie", "no": "Finansieringsstruktur ved oppstart"},
+    "liq_share_capital": {"en": "Share capital", "pl": "Kapitał zakładowy", "no": "Aksjekapital"},
+    "liq_owner_loan": {"en": "Owner loan", "pl": "Pożyczka od właściciela", "no": "Eierlån"},
+    "liq_loan_share": {"en": "Loan share of financing", "pl": "Udział pożyczki w finansowaniu", "no": "Lånets andel av finansiering"},
+    "liq_loan_repaid_note": {
+        "en": "The owner loan is fully repaid (60 instalments, last in 2025-12).",
+        "pl": "Pożyczka od właściciela jest w całości spłacona (60 rat, ostatnia w 2025-12).",
+        "no": "Eierlånet er fullt tilbakebetalt (60 avdrag, siste 2025-12).",
+    },
+    "liq_vat_section": {"en": "VAT", "pl": "VAT", "no": "MVA"},
+    "liq_output_vat": {"en": "Output VAT (2700)", "pl": "VAT należny (2700)", "no": "Utgående MVA (2700)"},
+    "liq_input_vat": {"en": "Input VAT (2710)", "pl": "VAT naliczony (2710)", "no": "Inngående MVA (2710)"},
+    "liq_vat_to_pay": {"en": "VAT to pay", "pl": "VAT do zapłaty", "no": "MVA til betaling"},
+    "liq_due": {"en": "due", "pl": "termin", "no": "forfall"},
+    "liq_vat_accruing": {"en": "VAT accruing, term in progress", "pl": "VAT narastający, termin w toku", "no": "MVA påløpt, termin pågår"},
+    "liq_vat_accruing_note": {
+        "en": "Estimate: input VAT on COGS is booked at month end, so the final amount will be lower.",
+        "pl": "Szacunek: VAT naliczony od COGS jest księgowany na koniec miesiąca, więc kwota końcowa będzie niższa.",
+        "no": "Estimat: inngående MVA på COGS bokføres ved månedsslutt, så endelig beløp blir lavere.",
+    },
+    "liq_vat_settlements": {"en": "VAT settlements", "pl": "Rozliczenia VAT", "no": "MVA-oppgjør"},
+    "liq_vat_partial_note": {
+        "en": "Month in progress: input VAT on COGS is booked at month end, so the last month's input VAT is incomplete.",
+        "pl": "Miesiąc w toku: VAT naliczony od COGS jest księgowany na koniec miesiąca, więc VAT naliczony za ostatni miesiąc jest niepełny.",
+        "no": "Måned pågår: inngående MVA på COGS bokføres ved månedsslutt, så siste måneds inngående MVA er ufullstendig.",
+    },
+    "liq_term": {"en": "Term", "pl": "Termin", "no": "Termin"},
+    "liq_period": {"en": "Period", "pl": "Okres", "no": "Periode"},
+    "liq_balance": {"en": "To pay / refund", "pl": "Do zapłaty / zwrot", "no": "Å betale / refusjon"},
+    "liq_payment_date": {"en": "Payment date", "pl": "Data płatności", "no": "Betalingsdato"},
+    "liq_cogs_section": {"en": "COGS payables", "pl": "Zobowiązania COGS", "no": "COGS-forpliktelser"},
+    "liq_cogs_unpaid": {"en": "Unpaid COGS payables", "pl": "Niezapłacone zobowiązania COGS", "no": "Ubetalte COGS-forpliktelser"},
+    "liq_accrual_date": {"en": "Accrued", "pl": "Zaksięgowano", "no": "Påløpt"},
+    "liq_due_date": {"en": "Due date", "pl": "Termin płatności", "no": "Forfallsdato"},
+    "liq_paid_date": {"en": "Paid on", "pl": "Zapłacono", "no": "Betalt"},
+    "liq_description": {"en": "Description", "pl": "Opis", "no": "Beskrivelse"},
+    "liq_net": {"en": "Net", "pl": "Netto", "no": "Netto"},
+    "liq_vat": {"en": "VAT", "pl": "VAT", "no": "MVA"},
+    "liq_gross": {"en": "Gross", "pl": "Brutto", "no": "Brutto"},
+    # Receivables page
+    "rcv_outstanding": {"en": "Outstanding", "pl": "Do zapłaty", "no": "Utestående"},
+    "rcv_overdue_amount": {"en": "Overdue", "pl": "Po terminie", "no": "Forfalt"},
+    "rcv_written_off_amount": {"en": "Written off", "pl": "Spisane w straty", "no": "Tapsført"},
+    "rcv_paid_late_count": {"en": "Paid late", "pl": "Zapłacone z opóźnieniem", "no": "Betalt for sent"},
+    "rcv_status_split": {"en": "Invoices by status", "pl": "Faktury wg statusu", "no": "Fakturaer etter status"},
+    "rcv_invoices": {"en": "invoices", "pl": "faktur", "no": "fakturaer"},
+    "rcv_ageing": {"en": "Ageing of unpaid invoices", "pl": "Wiekowanie niezapłaconych faktur", "no": "Aldersfordeling av ubetalte fakturaer"},
+    "rcv_not_due": {"en": "Not yet due", "pl": "Przed terminem", "no": "Ikke forfalt"},
+    "rcv_days_past_due": {"en": "Days past due", "pl": "Dni po terminie", "no": "Dager over forfall"},
+    "rcv_top_late": {"en": "Top customers by late payments", "pl": "Klienci wg opóźnionych płatności", "no": "Kunder etter sene betalinger"},
+    "rcv_top_outstanding": {"en": "Top customers by outstanding amount", "pl": "Klienci wg kwoty do zapłaty", "no": "Kunder etter utestående beløp"},
+    "rcv_late_payments": {"en": "Late payments", "pl": "Opóźnione płatności", "no": "Sene betalinger"},
+    "rcv_paid_invoices": {"en": "Paid invoices", "pl": "Zapłacone faktury", "no": "Betalte fakturaer"},
+    "rcv_unpaid_invoices": {"en": "Unpaid invoices", "pl": "Niezapłacone faktury", "no": "Ubetalte fakturaer"},
+    "rcv_write_offs": {"en": "Write-offs per month", "pl": "Odpisy na straty w miesiącach", "no": "Tapsføringer per måned"},
+    "rcv_monthly": {"en": "Per month", "pl": "W miesiącu", "no": "Per måned"},
+    "rcv_running_total": {"en": "Running total", "pl": "Narastająco", "no": "Akkumulert"},
+    "rcv_no_write_offs": {"en": "No write-offs in this period.", "pl": "Brak odpisów w tym okresie.", "no": "Ingen tapsføringer i denne perioden."},
+    "rcv_gross_note": {
+        "en": "Invoice amounts include VAT. Write-offs below are the net expense on account 7830 (the VAT part is reversed separately).",
+        "pl": "Kwoty faktur zawierają VAT. Odpisy poniżej to koszt netto na koncie 7830 (część VAT jest korygowana osobno).",
+        "no": "Fakturabeløp inkluderer MVA. Tapsføringene under er netto kostnad på konto 7830 (MVA-delen reverseres separat).",
+    },
     # Overview
     "all_years": {"en": "All years", "pl": "Wszystkie lata", "no": "Alle år"},
     "client_count": {"en": "Clients", "pl": "Klienci", "no": "Kunder"},
@@ -127,6 +242,23 @@ TRANSLATIONS = {
     "paid": {"en": "Paid", "pl": "Zapłacone", "no": "Betalt"},
     "yes": {"en": "Yes", "pl": "Tak", "no": "Ja"},
     "no": {"en": "No", "pl": "Nie", "no": "Nei"},
+    "invoice_status": {"en": "Invoice status", "pl": "Status faktury", "no": "Fakturastatus"},
+    "inv_paid": {"en": "Paid", "pl": "Zapłacona", "no": "Betalt"},
+    "inv_open": {"en": "Open", "pl": "Otwarta", "no": "Åpen"},
+    "inv_overdue": {"en": "Overdue", "pl": "Po terminie", "no": "Forfalt"},
+    "inv_written_off": {"en": "Written off", "pl": "Spisana w straty", "no": "Tapsført"},
+    "inv_not_invoiced": {"en": "Not invoiced yet", "pl": "Jeszcze nie zafakturowana", "no": "Ikke fakturert ennå"},
+    "partial_month_label": {"en": "month in progress", "pl": "miesiąc w toku", "no": "måned pågår"},
+    "partial_month_note": {
+        "en": "{month}: month in progress, costs booked at month end — profit and margin for it are not final.",
+        "pl": "{month}: miesiąc w toku, koszty księgowane na koniec miesiąca — zysk i marża za ten miesiąc nie są ostateczne.",
+        "no": "{month}: måneden pågår, kostnader bokføres ved månedsslutt — resultat og margin for den er ikke endelige.",
+    },
+    "partial_month_excluded": {
+        "en": "Totals and margin cover full months only (up to {month}); the open month is excluded.",
+        "pl": "Sumy i marża obejmują tylko pełne miesiące (do {month}); miesiąc w toku jest pominięty.",
+        "no": "Summer og margin dekker kun hele måneder (til og med {month}); den pågående måneden er utelatt.",
+    },
     # Operations page
     "products_services": {"en": "Products & services", "pl": "Produkty i usługi", "no": "Produkter og tjenester"},
     "suppliers": {"en": "Suppliers", "pl": "Dostawcy", "no": "Leverandører"},
@@ -280,6 +412,7 @@ DEPARTMENT_TRANSLATIONS = {
 # posted to (confirmed via a live DISTINCT query against postings JOIN
 # accounts, not guessed at) — 17 values, Norwegian GL account names.
 ACCOUNT_TRANSLATIONS = {
+    "Tap på krav": {"en": "Write-offs of receivables", "pl": "Odpisy należności", "no": "Tap på krav"},
     "Annen driftskostnad": {
         "en": "Other operating expense", "pl": "Inne koszty operacyjne", "no": "Annen driftskostnad",
     },
