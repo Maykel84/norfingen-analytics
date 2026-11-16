@@ -45,6 +45,8 @@ TOKENS = {
         "terracotta": "#c8661f",
         "terracotta_button": "#9c4f19",
         "terracotta_soft": "#f7e6d5",
+        # derived roles (defaults reproduce the original look; a palette may override)
+        "accent_text": "#1f6b3a", "toggle_active": "#9c4f19", "toggle_soft": "#f7e6d5", "on_toggle": "#ffffff",
         "slate": "#4f5aa8",
         "slate_soft": "#e6e8f5",
         "on_accent": "#ffffff",
@@ -66,6 +68,7 @@ TOKENS = {
         "terracotta": "#c97830",
         "terracotta_button": "#c97830",
         "terracotta_soft": "#3d2c1c",
+        "accent_text": "#57a366", "toggle_active": "#c97830", "toggle_soft": "#3d2c1c", "on_toggle": "#15251a",
         "slate": "#5f6bbd",
         "slate_soft": "#232a44",
         "on_accent": "#15251a",
@@ -76,12 +79,91 @@ TOKENS = {
 }
 
 
+# --- Optional preview palette: "Orchid & Cobalt" design system -----------------
+# Source: the user's design-system artifact (claude.ai/artifact/To4ggUxpApHgD9F3q46rc9).
+# Light theme = its Orchid palette, dark theme = its Cobalt palette; hex values
+# are the artifact's semantic tokens (bg, surface, ink, ink-muted, primary,
+# accent, border ...). Off by default; enabled only by
+# NORFINGEN_PALETTE=orchid-cobalt, so the shipped sage/terracotta look is
+# untouched. Token NAMES stay semantic here (sage = primary accent, terracotta
+# = secondary, slate = third categorical slot) — only the values change.
+# Values NOT in the artifact (derived, flagged): panel/divider tints, soft
+# fills, the light-theme teal third series (mint #98E8DE is too pale as a line
+# on white), and the dark text_secondary step.
+import os
+
+PALETTE = os.environ.get("NORFINGEN_PALETTE", "").strip().lower()
+
+PREVIEW_PALETTE_OVERRIDES = {
+    "light": {
+        "surface": "#ffffff", "panel": "#f0e8f5", "page": "#f7f2fa",
+        "border": "#e3d5ec", "divider": "#efe6f4",
+        "text_primary": "#542177", "text_secondary": "#6b5a78", "text_muted": "#8a7a97",
+        "sage": "#8e1ea2", "sage_soft": "#eddcf2",
+        "terracotta": "#d552a3", "terracotta_button": "#a8397f", "terracotta_soft": "#fbe3f1",
+        "slate": "#0f6e64", "slate_soft": "#d6f5f1",
+        "accent_text": "#8e1ea2", "toggle_active": "#542177", "toggle_soft": "#eddcf2", "on_toggle": "#ffffff",
+        "on_accent": "#ffffff",
+        "shadow": "rgba(84, 33, 119, 0.12)",
+    },
+    "dark": {
+        "surface": "#1a1953", "panel": "#121042", "page": "#080616",
+        "border": "#2a2970", "divider": "#22216a",
+        "text_primary": "#edebff", "text_secondary": "#c4c2ea", "text_muted": "#a3a1cc",
+        "sage": "#2f2fe4", "sage_soft": "#22226b",
+        "accent_text": "#8c8cff", "toggle_active": "#8c8cff", "toggle_soft": "#22226b", "on_toggle": "#080616",
+        "terracotta": "#d552a3", "terracotta_button": "#a8397f", "terracotta_soft": "#3a1f35",
+        "slate": "#98e8de", "slate_soft": "#17433f",
+        "on_accent": "#ffffff",
+        "shadow": "rgba(0, 0, 0, 0.5)",
+    },
+}
+# charts: cobalt / orchid pink / deep teal on light, light-cobalt / orchid pink / mint on dark.
+# Chosen so the three series differ in HUE and LIGHTNESS (cobalt dark, pink light,
+# teal dark-green) — revenue vs cost must stay separable for color-blind readers;
+# UI accents (buttons, nav) stay orchid purple on light.
+PREVIEW_CATEGORICAL = {
+    "light": ["#2f2fe4", "#d552a3", "#0f6e64"],
+    "dark": ["#8c8cff", "#d552a3", "#98e8de"],
+}
+PREVIEW_SEQUENTIAL = {  # primary data ramp: cobalt in both themes (matches the revenue series)
+    "light": ["#e4e4fc", "#bcbcf6", "#9393f0", "#6767ea", "#2f2fe4", "#2323b3", "#1a1a80"],
+    "dark": ["#2a2a8f", "#3838b8", "#4d4de0", "#6a6af2", "#8c8cff", "#aeaeff", "#cfcfff"],
+}
+PREVIEW_SEQUENTIAL_WARM = {  # secondary ramp: orchid pink
+    "light": ["#fbe3f1", "#f4bddc", "#e98fc2", "#d552a3", "#b0407f", "#8a3163", "#5f2144"],
+    "dark": ["#5a2a52", "#7c3569", "#9a3f7f", "#d552a3", "#e07bb9", "#ea9fcc", "#f2c2de"],
+}
+PREVIEW_CHROME = {
+    "light": {"surface": "#ffffff", "text_primary": "#542177", "text_secondary": "#6b5a78",
+              "muted": "#8a7a97", "grid": "#efe6f4", "axis": "#e3d5ec"},
+    "dark": {"surface": "#1a1953", "text_primary": "#edebff", "text_secondary": "#c4c2ea",
+             "muted": "#a3a1cc", "grid": "#2a2970", "axis": "#3a3990"},
+}
+
+if PALETTE == "orchid-cobalt":
+    for _mode, _vals in PREVIEW_PALETTE_OVERRIDES.items():
+        TOKENS[_mode].update(_vals)
+
+
 def tokens(theme: str) -> dict:
     return TOKENS[theme]
 
 
+# st.dataframe is a canvas drawn with Streamlit's static (light) native theme, so in
+# dark mode it stays a white block. Inverting + hue-rotating the element turns it
+# into a dark table with the original hues; used only with the preview palette.
+_DARK_TABLE_CSS = """
+    div[data-testid="stDataFrame"] {
+        filter: invert(0.93) hue-rotate(180deg);
+        border-radius: 12px;
+    }
+"""
+
+
 def inject_global_css(theme: str) -> str:
     t = tokens(theme)
+    extra = _DARK_TABLE_CSS if (PALETTE == "orchid-cobalt" and theme == "dark") else ""
     return f"""
     <style>
     @import url('{GOOGLE_FONTS_URL}');
@@ -141,8 +223,8 @@ def inject_global_css(theme: str) -> str:
     }}
     .st-key-toggle_lang div[data-testid="stButton"] > button[kind="primary"],
     .st-key-toggle_theme div[data-testid="stButton"] > button[kind="primary"] {{
-        background: {t['terracotta_button']} !important;
-        color: {t['on_accent']} !important;
+        background: {t['toggle_active']} !important;
+        color: {t['on_toggle']} !important;
     }}
 
     /* Main nav row — the one card in the header, symmetric padding and
@@ -197,7 +279,7 @@ def inject_global_css(theme: str) -> str:
         transition: background-color 0.15s ease, color 0.15s ease;
     }}
     .st-key-app_nav div[data-testid="stButton"] > button:hover {{
-        color: {t['sage']} !important;
+        color: {t['accent_text']} !important;
         background: {t['sage_soft']} !important;
     }}
     .st-key-app_nav div[data-testid="stButton"] > button[kind="primary"]:hover {{
@@ -206,13 +288,13 @@ def inject_global_css(theme: str) -> str:
     }}
     .st-key-toggle_lang div[data-testid="stButton"] > button:hover,
     .st-key-toggle_theme div[data-testid="stButton"] > button:hover {{
-        color: {t['terracotta_button']} !important;
-        background: {t['terracotta_soft']} !important;
+        color: {t['toggle_active']} !important;
+        background: {t['toggle_soft']} !important;
     }}
     .st-key-toggle_lang div[data-testid="stButton"] > button[kind="primary"]:hover,
     .st-key-toggle_theme div[data-testid="stButton"] > button[kind="primary"]:hover {{
-        background: {t['terracotta_button']} !important;
-        color: {t['on_accent']} !important;
+        background: {t['toggle_active']} !important;
+        color: {t['on_toggle']} !important;
     }}
     .brand {{
         display: flex;
@@ -309,7 +391,7 @@ def inject_global_css(theme: str) -> str:
        selected it. */
     [class*="st-key-pill_"] div[data-testid="stButton"] > button:hover {{
         border-color: {t['sage']} !important;
-        color: {t['sage']} !important;
+        color: {t['accent_text']} !important;
         background: {t['sage_soft']} !important;
     }}
     [class*="st-key-pill_"] div[data-testid="stButton"] > button[kind="primary"]:hover {{
@@ -320,6 +402,20 @@ def inject_global_css(theme: str) -> str:
 
     /* Year dropdown — restyled BaseWeb select to match the app's controls
        rather than Streamlit's default select chrome. */
+    /* wrapper divs above the BaseWeb control take Streamlit's native
+       secondary background (a light fill even in dark mode, hiding the text) —
+       clear them so only the styled control below paints a background. */
+    .st-key-select_years div {{
+        background-color: transparent !important;
+    }}
+    .st-key-select_years div[data-baseweb="select"] *,
+    .st-key-select_years input {{
+        color: {t['text_primary']} !important;
+        -webkit-text-fill-color: {t['text_primary']} !important;
+    }}
+    .st-key-select_years svg {{
+        fill: {t['text_secondary']} !important;
+    }}
     .st-key-select_years div[data-baseweb="select"] > div {{
         border-radius: 12px !important;
         border: 1px solid {t['border']} !important;
@@ -359,7 +455,7 @@ def inject_global_css(theme: str) -> str:
         font-size: 11px;
         font-weight: 600;
         background: {t['sage_soft']};
-        color: {t['sage']};
+        color: {t['accent_text']};
         margin-right: 6px;
     }}
 
@@ -425,7 +521,7 @@ def inject_global_css(theme: str) -> str:
     }}
     div[data-testid="stButton"] > button:hover {{
         border-color: {t['sage']};
-        color: {t['sage']};
+        color: {t['accent_text']};
     }}
     div[data-testid="stButton"] > button:disabled {{
         color: {t['text_muted']};
@@ -471,5 +567,6 @@ def inject_global_css(theme: str) -> str:
         color: {t['text_secondary']} !important;
         font-weight: 600 !important;
     }}
+    {extra}
     </style>
     """

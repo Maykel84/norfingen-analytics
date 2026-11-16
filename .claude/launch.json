@@ -4,8 +4,20 @@
     {
       "name": "streamlit-dashboard",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "source .venv/bin/activate && streamlit run app.py --server.port 8501 --server.headless true"],
+      "runtimeArgs": [
+        "-c",
+        "source .venv/bin/activate && streamlit run app.py --server.port 8501 --server.headless true"
+      ],
       "port": 8501
+    },
+    {
+      "name": "streamlit-orchid-cobalt",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "source .venv/bin/activate && NORFINGEN_PALETTE=orchid-cobalt streamlit run app.py --server.port 8502 --server.headless true --theme.primaryColor '#8e1ea2' --theme.backgroundColor '#ffffff' --theme.secondaryBackgroundColor '#f0e8f5' --theme.textColor '#542177'"
+      ],
+      "port": 8502
     }
   ]
 }
