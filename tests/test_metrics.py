@@ -259,3 +259,25 @@ def test_employee_utilization_handles_zero_hours():
         df = metrics.get_employee_utilization()
     assert df["utilization_pct"].iloc[0] == pytest.approx(30.0)
     assert pd.isna(df["utilization_pct"].iloc[1])
+
+
+# --- snap_to_full_months (Time Analysis fix) -----------------------------------
+
+def test_snap_default_last_12_months_matches_trailing_12_full_months():
+    # default picker range 2025-11-16 .. 2026-11-16 with Nov 2026 still open
+    with _with_partial([dt.date(2026, 11, 1)]):
+        assert metrics.snap_to_full_months((dt.date(2025, 11, 16), dt.date(2026, 11, 16))) == (
+            dt.date(2025, 11, 1), dt.date(2026, 10, 31),
+        )
+
+
+def test_snap_aligns_start_and_end_to_month_edges_when_all_months_closed():
+    with _with_partial([]):
+        assert metrics.snap_to_full_months((dt.date(2024, 3, 17), dt.date(2024, 5, 3))) == (
+            dt.date(2024, 3, 1), dt.date(2024, 5, 31),
+        )
+
+
+def test_snap_returns_none_when_range_is_only_the_open_month():
+    with _with_partial([dt.date(2026, 11, 1)]):
+        assert metrics.snap_to_full_months((dt.date(2026, 11, 2), dt.date(2026, 11, 16))) is None

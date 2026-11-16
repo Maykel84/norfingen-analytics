@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from semantic.metrics import (
-    exclude_partial_months, get_companies, get_date_bounds, get_measure, get_partial_months_in_range,
+    get_companies, get_date_bounds, get_measure, get_partial_months_in_range, snap_to_full_months,
 )
 from semantic.schema import MEASURES
 from ui.charts import bar_breakdown, line_over_time, measure_color
@@ -102,16 +102,32 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
 
     st.write("")
     with st.spinner(t("loading_data", lang)):
-        # KPI totals stop at the last full month (open month has revenue, not costs yet).
-        totals = get_measure("profit", group_by=[], date_range=exclude_partial_months(date_range_param), filters=filters)
+        # Profit/cost/margin only make sense over whole months: snap the picked range
+        # (start -> 1st, end -> last day of the last FULL month). Revenue/orders keep
+        # the exact dates only for an explicit custom range.
+        snapped = snap_to_full_months(date_range_param)
+        is_custom = st.session_state.period_type == "custom"
+        totals = get_measure("profit", group_by=[], date_range=snapped, filters=filters) if snapped else None
+        exact = get_measure("profit", group_by=[], date_range=date_range_param, filters=filters) if is_custom else None
+        exact_measures = ("revenue", "order_count") if is_custom else ()
         kpi_cols = st.columns(len(selected_measures))
         for i, m in enumerate(selected_measures):
-            value = totals[m].iloc[0] if m in totals.columns and not totals.empty else None
+            source = exact if m in exact_measures else totals
+            value = source[m].iloc[0] if source is not None and m in source.columns and not source.empty else None
             with kpi_cols[i]:
                 kpi_tile(t(m, lang), FORMATTERS.get(m, str)(value) if value is not None else "—", theme)
+        if snapped is None:
+            st.caption(f"ℹ️ {t('no_full_month', lang)}")
+        else:
+            a_label, b_label = f"{snapped[0]:%Y-%m}", f"{snapped[1]:%Y-%m}"
+            aligned = date_range_param[0] == snapped[0] and date_range_param[1] == snapped[1]
+            if is_custom and not aligned:
+                st.warning(t("range_unaligned_warning", lang).format(start=a_label, end=b_label))
+            elif not is_custom:
+                st.caption(f"ℹ️ {t('range_aligned', lang).format(start=a_label, end=b_label)}")
+            st.caption(t("profit_definition", lang))
 
         open_months = get_partial_months_in_range(date_range_param)
-        partial_month_caption(open_months, lang, excluded=True)
 
         st.write("")
         st.markdown(f'<div class="section-label">{t("over_time", lang)}</div>', unsafe_allow_html=True)
@@ -203,8 +219,11 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         isinstance(period_a, tuple) and len(period_a) == 2
         and isinstance(period_b, tuple) and len(period_b) == 2
     ):
-        totals_a = get_measure("profit", group_by=[], date_range=exclude_partial_months(period_a), filters=filters)
-        totals_b = get_measure("profit", group_by=[], date_range=exclude_partial_months(period_b), filters=filters)
+        snap_a, snap_b = snap_to_full_months(period_a), snap_to_full_months(period_b)
+        totals_a = get_measure("profit", group_by=[], date_range=snap_a, filters=filters) if snap_a else pd.DataFrame()
+        totals_b = get_measure("profit", group_by=[], date_range=snap_b, filters=filters) if snap_b else pd.DataFrame()
+        if snap_a and snap_b:
+            st.caption(f"ℹ️ A: {snap_a[0]:%Y-%m} … {snap_a[1]:%Y-%m} · B: {snap_b[0]:%Y-%m} … {snap_b[1]:%Y-%m} (full months)")
         cols = st.columns(len(selected_measures))
         for i, m in enumerate(selected_measures):
             val_a = totals_a[m].iloc[0] if m in totals_a.columns and not totals_a.empty else None

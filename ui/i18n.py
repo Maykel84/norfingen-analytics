@@ -254,6 +254,26 @@ TRANSLATIONS = {
         "pl": "{month}: miesiąc w toku, koszty księgowane na koniec miesiąca — zysk i marża za ten miesiąc nie są ostateczne.",
         "no": "{month}: måneden pågår, kostnader bokføres ved månedsslutt — resultat og margin for den er ikke endelige.",
     },
+    "range_aligned": {
+        "en": "Range aligned to full months: {start} … {end}.",
+        "pl": "Zakres dopasowany do pełnych miesięcy: {start} … {end}.",
+        "no": "Perioden er justert til hele måneder: {start} … {end}.",
+    },
+    "range_unaligned_warning": {
+        "en": "The custom range does not start on the 1st or end on a month end: profit and margin for partial months are not meaningful. Revenue and orders use your exact dates; cost, profit and margin use {start} … {end}.",
+        "pl": "Własny zakres nie zaczyna się 1. dnia ani nie kończy z końcem miesiąca: zysk i marża dla niepełnych miesięcy nie mają sensu. Przychód i zamówienia używają Twoich dokładnych dat; koszt, zysk i marża — {start} … {end}.",
+        "no": "Egendefinert periode starter ikke den 1. eller slutter ikke ved månedsslutt: resultat og margin for delvise måneder er ikke meningsfulle. Inntekt og ordrer bruker eksakte datoer; kostnad, resultat og margin bruker {start} … {end}.",
+    },
+    "no_full_month": {
+        "en": "The selected range contains no full month yet, so cost, profit and margin are not available.",
+        "pl": "Wybrany zakres nie zawiera jeszcze pełnego miesiąca, więc koszt, zysk i margines są niedostępne.",
+        "no": "Valgt periode inneholder ingen hel måned ennå, så kostnad, resultat og margin er utilgjengelig.",
+    },
+    "profit_definition": {
+        "en": "Profit = operating result: revenue − COGS − payroll − operating costs (accounts 4000–7999), before financial items.",
+        "pl": "Zysk = wynik operacyjny: przychód − COGS − wynagrodzenia − koszty operacyjne (konta 4000–7999), przed pozycjami finansowymi.",
+        "no": "Resultat = driftsresultat: inntekt − COGS − lønn − driftskostnader (konto 4000–7999), før finansposter.",
+    },
     "partial_month_excluded": {
         "en": "Totals and margin cover full months only (up to {month}); the open month is excluded.",
         "pl": "Sumy i marża obejmują tylko pełne miesiące (do {month}); miesiąc w toku jest pominięty.",

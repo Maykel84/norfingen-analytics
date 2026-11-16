@@ -412,6 +412,23 @@ def exclude_partial_months(date_range: tuple | None) -> tuple | None:
     return (start, min(end, cutoff))
 
 
+def snap_to_full_months(date_range: tuple) -> tuple | None:
+    """Align a (start, end) range to whole months for profit/cost/margin: start
+    moves to the 1st of its month, end to the last day of its month, then end is
+    capped at the last FULL month (the open month has revenue but not yet its
+    month-end payroll/COGS). Returns None when no full month remains.
+
+    A range cut mid-month is the real bug this guards against: revenue counted
+    from the 16th against costs booked at month end inside the range."""
+    start, end = date_range
+    start = start.replace(day=1)
+    end = _month_end(end)
+    partial = get_partial_month_starts()
+    if partial:
+        end = min(end, partial[0] - dt.timedelta(days=1))
+    return (start, end) if start <= end else None
+
+
 def get_yearly_totals(year: int | None) -> dict:
     """Headline KPIs for the Overview landing page, optionally scoped to one
     year. Full months only (see exclude_partial_months): the open month has
