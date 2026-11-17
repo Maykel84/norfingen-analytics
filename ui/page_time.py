@@ -127,13 +127,18 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
                 st.caption(f"ℹ️ {t('range_aligned', lang).format(start=a_label, end=b_label)}")
             st.caption(t("profit_definition", lang))
 
-        open_months = get_partial_months_in_range(date_range_param)
+        # KPI, series and breakdown must describe the same months: outside a custom range the
+        # series start at the 1st of the first month (a half-month point is not a result) and
+        # the breakdown uses exactly the KPI's aligned range.
+        series_range = (snapped[0], date_range_param[1]) if (snapped and not is_custom) else date_range_param
+        breakdown_range = snapped if (snapped and not is_custom) else date_range_param
+        open_months = get_partial_months_in_range(series_range)
 
         st.write("")
         st.markdown(f'<div class="section-label">{t("over_time", lang)}</div>', unsafe_allow_html=True)
         for m in selected_measures:
             ts_df = get_measure(
-                m, group_by=[], date_range=date_range_param, granularity=granularity, filters=filters,
+                m, group_by=[], date_range=series_range, granularity=granularity, filters=filters,
             )
             if ts_df.empty or "period" not in ts_df.columns:
                 continue
@@ -162,7 +167,7 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
 
             bcols = st.columns(min(2, len(breakdown_measures)) or 1)
             for i, m in enumerate(breakdown_measures):
-                df = get_measure(m, group_by=group_by, date_range=date_range_param, filters=filters)
+                df = get_measure(m, group_by=group_by, date_range=breakdown_range, filters=filters)
                 if df.empty:
                     continue
                 y_col = m if m in df.columns else "profit"

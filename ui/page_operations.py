@@ -60,13 +60,14 @@ def _suppliers_section(lang: str, theme: str, date_range: tuple | None) -> None:
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     table = df.rename(
         columns={
-            "supplier": t("supplier", lang), "invoice_count": t("order_count", lang),
+            "supplier": t("supplier", lang), "invoice_count": t("invoice_count", lang),
             "spend": t("spend", lang), "unpaid_amount": t("unpaid", lang),
         }
     )
     table[t("spend", lang)] = table[t("spend", lang)].map(format_currency)
     table[t("unpaid", lang)] = table[t("unpaid", lang)].map(format_currency)
     st.dataframe(table, use_container_width=True, hide_index=True)
+    st.caption(f"ℹ️ {t('suppliers_note', lang)}")
 
 
 def _staffing_section(lang: str, theme: str) -> None:
@@ -86,6 +87,7 @@ def _staffing_section(lang: str, theme: str) -> None:
 
 _ABSENCE_LABELS = {
     "VACATION": "vacation", "SICK": "sick", "PARENTAL_LEAVE": "parental_leave", "WELFARE_LEAVE": "welfare_leave",
+    "CHILD_CARE_LEAVE": "child_care_leave", "FLEX_LEAVE": "flex_leave",
 }
 
 
@@ -177,10 +179,11 @@ def _payroll_section(lang: str, theme: str, date_range: tuple | None) -> None:
     df = get_payroll_trend(date_range=date_range)
     if not df.empty:
         fig = line_over_time(
-            df, "period", "payroll", None, t("payroll", lang), theme, value_suffix=" kr", fill=True,
-            x_title=t("month", lang), y_title=t("payroll", lang), granularity="month",
+            df, "period", "payroll", None, t("payroll_net", lang), theme, value_suffix=" kr", fill=True,
+            x_title=t("month", lang), y_title=t("payroll_net", lang), granularity="month",
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.caption(f"ℹ️ {t('payroll_net_note', lang)}")
 
     st.write("")
     st.markdown(f'<div class="section-label">{t("payroll_by_employee", lang)}</div>', unsafe_allow_html=True)

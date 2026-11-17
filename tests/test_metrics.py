@@ -329,3 +329,29 @@ def test_financial_expense_uses_8xxx_accounts_and_date_range():
     with patch.object(metrics, "run_query", return_value=raw) as rq:
         assert metrics.get_financial_expense((dt.date(2019, 1, 1), dt.date(2025, 12, 31))) == pytest.approx(794791.61)
     assert "BETWEEN 8000 AND 8999" in rq.call_args.args[0]
+
+
+# --- Operations review fixes (round 2, point 3) ----------------------------------
+
+def test_supplier_spend_includes_cogs_payables():
+    raw = pd.DataFrame({"supplier": ["X"], "invoice_count": [2], "spend": ["10"], "unpaid_amount": ["0"]})
+    with patch.object(metrics, "run_query", return_value=raw) as rq:
+        metrics.get_supplier_spend()
+    sql = rq.call_args.args[0]
+    assert "supplier_invoices" in sql and "cogs_payables" in sql and "UNION ALL" in sql
+
+
+def test_absence_types_cover_every_non_hour_activity():
+    assert {"CHILD_CARE_LEAVE", "FLEX_LEAVE"} <= set(metrics.ABSENCE_ACTIVITY_TYPES)
+
+
+def test_payroll_gross_comes_from_specifications_and_employer_cost_uses_multiplier():
+    raw = pd.DataFrame({
+        "employee_id": [1, 1], "employee": ["A", "A"], "department": ["D", "D"], "year": [2024, 2025],
+        "months_paid": [12, 12], "gross_annual": ["100", "110"], "net_annual": ["70", "77"],
+    })
+    with patch.object(metrics, "run_query", return_value=raw) as rq:
+        df = metrics.get_payroll_by_employee()
+    assert "wage_type_id IN (100, 260)" in rq.call_args.args[0]
+    assert df["employer_cost"].iloc[1] == pytest.approx(110 * metrics.EMPLOYER_COST_MULTIPLIER)
+    assert df["yoy_growth_pct"].iloc[1] == pytest.approx(10.0)

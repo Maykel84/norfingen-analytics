@@ -608,18 +608,27 @@ def get_product_revenue(date_range: tuple | None = None) -> pd.DataFrame:
 
 
 def get_supplier_spend(date_range: tuple | None = None) -> pd.DataFrame:
-    """Spend by supplier, from supplier_invoices — the cost-side complement
-    to the Clients tab (cost-to-supplier is fully attributable, unlike
-    cost-to-customer)."""
-    where_sql, params = _date_range_clause(date_range, "si.invoice_date")
+    """Spend by supplier, NET of VAT: purchase invoices (supplier_invoices) AND the
+    pass-through COGS payables (cogs_payables, accounts 4291/4292). The COGS
+    payables are ~86% of all supplier spend (Ingram Micro and the Microsoft/Azure
+    resale), so leaving them out showed Microsoft at 1.9M instead of ~26M and an
+    "unpaid" of 0.1M instead of 2.1M net."""
+    where_sql, params = _date_range_clause(date_range, "src.d")
     sql = f"""
+        WITH src AS (
+            SELECT supplier_id, invoice_date AS d, amount_excluding_vat_currency AS amount, status
+            FROM supplier_invoices
+            UNION ALL
+            SELECT supplier_id, accrual_date AS d, amount_excluding_vat_currency AS amount, status
+            FROM cogs_payables
+        )
         SELECT
             s.name AS supplier,
             COUNT(*) AS invoice_count,
-            SUM(si.amount_excluding_vat_currency) AS spend,
-            SUM(CASE WHEN si.status = 'UNPAID' THEN si.amount_excluding_vat_currency ELSE 0 END) AS unpaid_amount
-        FROM supplier_invoices si
-        JOIN suppliers s ON s.id = si.supplier_id
+            SUM(src.amount) AS spend,
+            SUM(CASE WHEN src.status = 'UNPAID' THEN src.amount ELSE 0 END) AS unpaid_amount
+        FROM src
+        JOIN suppliers s ON s.id = src.supplier_id
         WHERE 1=1 {where_sql}
         GROUP BY s.name
         ORDER BY spend DESC
@@ -653,7 +662,9 @@ def get_staffing_summary() -> pd.DataFrame:
 # the two in one hours-summed chart would draw the absence types as flat
 # zero lines, so they're tracked separately as day counts (get_absence_trend).
 HOUR_BASED_ACTIVITY_TYPES = ("BILLABLE", "INTERNAL")
-ABSENCE_ACTIVITY_TYPES = ("VACATION", "SICK", "PARENTAL_LEAVE", "WELFARE_LEAVE")
+ABSENCE_ACTIVITY_TYPES = (
+    "VACATION", "SICK", "PARENTAL_LEAVE", "WELFARE_LEAVE", "CHILD_CARE_LEAVE", "FLEX_LEAVE",
+)
 
 
 def get_utilization_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
@@ -773,8 +784,11 @@ EMPLOYER_COST_MULTIPLIER = 1.141
 
 
 def get_payroll_by_employee() -> pd.DataFrame:
-    """Gross annual pay per employee per year, YoY growth, and estimated
-    employer cost (gross x EMPLOYER_COST_MULTIPLIER).
+    """Gross annual pay per employee per year (salary_specifications, wage types
+    100+260 — payslips.amount is NET pay and was previously shown as gross, which
+    understated employer cost by ~29% against the ledger), YoY growth, and
+    estimated employer cost (gross x EMPLOYER_COST_MULTIPLIER; within ~0.3% of
+    ledger labor 5000-5999 for 2024-2025).
 
     Named per-employee data, shown only because the user explicitly asked
     for a named salary breakdown (confirmed 2026-09-21) — unlike absence
@@ -788,16 +802,25 @@ def get_payroll_by_employee() -> pd.DataFrame:
             d.name AS department,
             EXTRACT(YEAR FROM p.date)::int AS year,
             COUNT(DISTINCT EXTRACT(MONTH FROM p.date)) AS months_paid,
-            SUM(p.amount) AS gross_annual
+            SUM(g.gross_amount) AS gross_annual,
+            SUM(p.amount) AS net_annual
         FROM payslips p
         JOIN employees e ON e.id = p.employee_id
         LEFT JOIN departments d ON d.id = e.department_id
+        LEFT JOIN (
+            -- wage types 100 (Fast lønn) + 260 (Feriepenger): the gross that ties to ledger
+            -- account 5000; payslips.amount itself is the NET pay after tax (wage type 920)
+            SELECT payslip_id, SUM(amount) AS gross_amount
+            FROM salary_specifications WHERE wage_type_id IN (100, 260) GROUP BY payslip_id
+        ) g ON g.payslip_id = p.id
         GROUP BY e.id, employee, d.name, year
         ORDER BY e.id, year
     """
     df = run_query(sql)
     if df.empty:
         return df
+    for col in ("gross_annual", "net_annual"):
+        df[col] = df[col].astype(float)
     df = df.sort_values(["employee_id", "year"])
     # A year with fewer than 12 paid months (the current, still-running year)
     # would show as a fake pay cut against a full prior year — pct_change

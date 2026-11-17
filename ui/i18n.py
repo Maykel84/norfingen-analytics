@@ -317,6 +317,20 @@ TRANSLATIONS = {
     "vacation": {"en": "Vacation", "pl": "Urlop", "no": "Ferie"},
     "parental_leave": {"en": "Parental leave", "pl": "Urlop rodzicielski", "no": "Foreldrepermisjon"},
     "welfare_leave": {"en": "Other leave", "pl": "Inne nieobecności", "no": "Annen permisjon"},
+    "child_care_leave": {"en": "Child-care leave", "pl": "Opieka nad dzieckiem", "no": "Omsorgspermisjon"},
+    "flex_leave": {"en": "Flex leave", "pl": "Odbiór czasu (flex)", "no": "Avspasering"},
+    "invoice_count": {"en": "Invoices", "pl": "Faktury", "no": "Fakturaer"},
+    "suppliers_note": {
+        "en": "Spend and Unpaid are net of VAT and include the pass-through COGS payables (Ingram Micro, Microsoft/Azure) as well as purchase invoices.",
+        "pl": "Wydatki i Niezapłacone są netto (bez VAT) i obejmują zarówno faktury zakupu, jak i przelotowe zobowiązania COGS (Ingram Micro, Microsoft/Azure).",
+        "no": "Utgifter og Ubetalt er eksklusive MVA og omfatter både innkjøpsfakturaer og gjennomstrømmings-COGS (Ingram Micro, Microsoft/Azure).",
+    },
+    "payroll_net": {"en": "Net pay disbursed", "pl": "Wypłacone wynagrodzenia netto", "no": "Utbetalt nettolønn"},
+    "payroll_net_note": {
+        "en": "Net pay actually paid out (after tax withholding), from payslips. The gross and employer-cost figures below come from the salary specifications and tie to ledger labor cost.",
+        "pl": "Wynagrodzenia netto faktycznie wypłacone (po potrąceniu podatku), z list płac. Kwoty brutto i koszt pracodawcy poniżej pochodzą ze specyfikacji płac i zgadzają się z kosztem pracy w księdze.",
+        "no": "Nettolønn som faktisk er utbetalt (etter skattetrekk), fra lønnsslipper. Brutto og arbeidsgiverkostnad nedenfor kommer fra lønnsspesifikasjonene og stemmer med lønnskostnaden i hovedboken.",
+    },
     "absences": {"en": "Absences", "pl": "Nieobecności", "no": "Fravær"},
     "absences_by_department": {
         "en": "Absences by department", "pl": "Nieobecności wg działu", "no": "Fravær per avdeling",
