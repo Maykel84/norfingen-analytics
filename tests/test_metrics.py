@@ -281,3 +281,25 @@ def test_snap_aligns_start_and_end_to_month_edges_when_all_months_closed():
 def test_snap_returns_none_when_range_is_only_the_open_month():
     with _with_partial([dt.date(2026, 11, 1)]):
         assert metrics.snap_to_full_months((dt.date(2026, 11, 2), dt.date(2026, 11, 16))) is None
+
+
+# --- coverage map framing (Overview fix) ------------------------------------------
+
+def test_coverage_map_view_fits_all_cities():
+    from ui.charts import _fit_map_view
+
+    df = pd.DataFrame({"lat": [58.1, 69.6, 59.9], "lon": [8.0, 18.9, 10.7]})  # Kristiansand .. Tromsø
+    center, zoom = _fit_map_view(df)
+    assert center["lat"] == pytest.approx(63.85) and center["lon"] == pytest.approx(13.45)
+    assert 3.0 <= zoom <= 4.2  # far lower than the old fixed 3.6 centre-on-64.5 framing would clip the south
+    # the whole lat span must fit the 320 px viewport at this zoom
+    import math
+    deg_per_px = 360 / (512 * 2**zoom) * math.cos(math.radians(center["lat"]))
+    assert (69.6 - 58.1) / deg_per_px <= 320 + 1
+
+
+def test_coverage_map_single_city_does_not_zoom_to_infinity():
+    from ui.charts import _fit_map_view
+
+    _, zoom = _fit_map_view(pd.DataFrame({"lat": [59.9], "lon": [10.7]}))
+    assert zoom <= 6.0

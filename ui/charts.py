@@ -531,26 +531,47 @@ def company_scatter_map(
     return fig
 
 
+def _fit_map_view(df: pd.DataFrame, width_px: int = 340, height_px: int = 320) -> tuple[dict, float]:
+    """Center and zoom that fit every point of df into a width x height viewport
+    (Web-Mercator maths: 512 px world at zoom 0, 360 deg across). plotly's
+    scatter_map has no fit-bounds, and a fixed zoom/center framed only the
+    north: most customers sit in the south and fell outside the panel, leaving
+    the basemap looking empty. width/height are deliberately conservative
+    (panel minus padding) so it also fits the narrowest column."""
+    lat_min, lat_max = float(df["lat"].min()), float(df["lat"].max())
+    lon_min, lon_max = float(df["lon"].min()), float(df["lon"].max())
+    center = {"lat": (lat_min + lat_max) / 2, "lon": (lon_min + lon_max) / 2}
+    lat_span = max(lat_max - lat_min, 0.5)
+    lon_span = max(lon_max - lon_min, 0.5)
+    z_lon = math.log2(360 * width_px / (512 * lon_span))
+    z_lat = math.log2(360 * height_px * math.cos(math.radians(center["lat"])) / (512 * lat_span))
+    return center, max(3.0, min(z_lon, z_lat, 6.0))
+
+
 def coverage_map(df: pd.DataFrame, count_col: str, theme: str, title: str, names_col: str = "company_names") -> go.Figure:
     """City-level presence/density map for the Overview landing page — a
     coarser 'where do we operate' read, not per-company drill-down. Bubble
     size/color still encode company count (magnitude), but the hover shows
-    the actual company names for that city, not just a repeat of the count."""
+    the actual company names for that city, not just a repeat of the count.
+    The view is fitted to the cities shown; the colorscale skips the palest
+    steps, which vanish against the light basemap."""
     c = CHROME[theme]
+    center, zoom = _fit_map_view(df)
+    ramp = SEQUENTIAL[theme][2:] if theme == "light" else SEQUENTIAL[theme][1:]
     fig = px.scatter_map(
         df,
         lat="lat",
         lon="lon",
         size=count_col,
         color=count_col,
-        color_continuous_scale=SEQUENTIAL[theme],
+        color_continuous_scale=ramp,
         size_max=28,
-        zoom=3.6,
-        center={"lat": 64.5, "lon": 13.0},
+        zoom=zoom,
+        center=center,
         hover_name="city",
         custom_data=[names_col],
     )
-    fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>%{customdata[0]}<extra></extra>")
+    fig.update_traces(hovertemplate="<b>%{hovertext}</b><br>%{customdata[0]}<extra></extra>", marker=dict(opacity=0.85))
     fig.update_layout(
         map_style="carto-darkmatter" if theme == "dark" else "carto-positron",
         paper_bgcolor=c["surface"],
