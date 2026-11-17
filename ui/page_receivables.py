@@ -140,6 +140,21 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         })
         st.dataframe(table, use_container_width=True, hide_index=True)
 
+    # Pending write-offs: bad debt already decided by the generator, voucher not booked yet
+    # (v_invoice_status.write_off_pending); they stay Overdue until the planned date.
+    pending = df[df["write_off_pending"]].sort_values("write_off_planned_date")
+    if not pending.empty:
+        st.write("")
+        st.markdown(f'<div class="section-label">{t("rcv_pending_title", lang)}</div>', unsafe_allow_html=True)
+        table = pd.DataFrame({
+            t("company", lang): pending["customer"],
+            t("rcv_pending_amount", lang): pending["amount"].map(format_currency),
+            t("liq_due_date", lang): pending["due_date"].dt.strftime("%Y-%m-%d"),
+            t("rcv_days_past_due", lang): pending["days_past_due"].map(lambda d: f"{int(d)}"),
+            t("rcv_planned_writeoff", lang): pending["write_off_planned_date"].dt.strftime("%Y-%m-%d").fillna("—"),
+        })
+        st.dataframe(table, use_container_width=True, hide_index=True)
+
     st.write("")
     st.markdown(f'<div class="section-label">{t("rcv_write_offs", lang)}</div>', unsafe_allow_html=True)
     if write_offs.empty:

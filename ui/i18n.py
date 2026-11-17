@@ -171,6 +171,9 @@ TRANSLATIONS = {
         "pl": "Po terminie obejmuje {n} fakt. ({amount}) już uznanych za nieściągalne: pozostają „po terminie” do zaksięgowania odpisu, planowanego na {date}.",
         "no": "Forfalt inkluderer {n} faktura(er) ({amount}) som allerede er vurdert som tap: de forblir Forfalt til tapsføringen er bokført, planlagt {date}.",
     },
+    "rcv_pending_title": {"en": "Pending write-offs", "pl": "Odpisy oczekujące", "no": "Ventende tapsføringer"},
+    "rcv_pending_amount": {"en": "Amount (gross)", "pl": "Kwota (brutto)", "no": "Beløp (brutto)"},
+    "rcv_planned_writeoff": {"en": "Planned write-off", "pl": "Planowany odpis", "no": "Planlagt tapsføring"},
     "rcv_reconciled": {
         "en": "Reconciled: net of the Written-off invoices = ledger account 7830 = {amount}.",
         "pl": "Zgodne: netto spisanych faktur = konto 7830 w księdze = {amount}.",
