@@ -100,6 +100,10 @@ TRANSLATIONS = {
     "liq_min_marker": {"en": "Lowest day", "pl": "Najniższy dzień", "no": "Laveste dag"},
     "liq_loan_outstanding": {"en": "Owner loan outstanding", "pl": "Pożyczka od właściciela — saldo", "no": "Eierlån — utestående"},
     "liq_loan_section": {"en": "Owner loan", "pl": "Pożyczka od właściciela", "no": "Eierlån"},
+    "liq_repaid": {"en": "Repaid", "pl": "Spłacona", "no": "Nedbetalt"},
+    "liq_last_instalment": {
+        "en": "last instalment {month}", "pl": "ostatnia rata {month}", "no": "siste avdrag {month}",
+    },
     "liq_principal_repaid": {"en": "Principal repaid", "pl": "Spłacony kapitał", "no": "Betalt avdrag"},
     "liq_interest": {"en": "Interest", "pl": "Odsetki", "no": "Renter"},
     "liq_principal_vs_interest": {"en": "Principal vs interest per month", "pl": "Kapitał vs odsetki miesięcznie", "no": "Avdrag og renter per måned"},

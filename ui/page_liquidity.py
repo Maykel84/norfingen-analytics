@@ -52,7 +52,18 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             kpi_tile(t("liq_min_balance", lang), format_currency(low["balance"]), theme)
             st.caption(f"{t('liq_on', lang)} {low['day']:%Y-%m-%d}")
     with cols[2]:
-        kpi_tile(t("liq_loan_outstanding", lang), format_currency(loan_view["outstanding"].iloc[-1] if not loan_view.empty else 0), theme)
+        # Outstanding principal at the end of the viewed period (loan rows stop at the
+        # last instalment, so a later year is judged by the final row, not shown as 0).
+        view_end = pd.Timestamp(year=selected_year, month=12, day=1) if selected_year else loan["period"].max()
+        upto = loan[loan["period"] <= view_end]
+        outstanding = float(upto["outstanding"].iloc[-1]) if not upto.empty else 0.0
+        if outstanding > 0:
+            kpi_tile(t("liq_loan_outstanding", lang), format_currency(outstanding), theme)
+        else:
+            repaid = upto[upto["principal_repaid"] > 0]
+            kpi_tile(t("liq_loan_outstanding", lang), t("liq_repaid", lang), theme)
+            if not repaid.empty:
+                st.caption(t("liq_last_instalment", lang).format(month=f"{repaid['period'].iloc[-1]:%Y-%m}"))
     with cols[3]:
         kpi_tile(t("liq_vat_to_pay", lang), format_currency(unpaid_vat["balance"].sum()), theme)
         if next_due is not None:
