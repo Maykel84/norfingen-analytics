@@ -4,7 +4,8 @@ import pandas as pd
 import streamlit as st
 
 from semantic.metrics import (
-    get_city_density, get_monthly_trend_for_year, get_multi_year_trend, get_partial_months_in_range, get_yearly_totals,
+    exclude_partial_months, get_city_density, get_financial_expense, get_monthly_trend_for_year, get_multi_year_trend,
+    get_partial_months_in_range, get_yearly_totals,
 )
 from ui.charts import coverage_map, line_over_time
 from ui.components import format_currency, format_pct, kpi_tile, partial_month_caption
@@ -37,6 +38,15 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         with cols[4]:
             kpi_tile(t("client_count", lang), f"{totals['company_count']:,}", theme)
         partial_month_caption(get_partial_months_in_range(date_range), lang, excluded=True)
+        # Say what "Profit" is: operating result, before financial items. Financial
+        # expense (loan interest, 8xxx) comes from the ledger for the same full-month
+        # range as the KPIs — never hard-coded — together with the result after it.
+        st.caption(t("profit_definition", lang))
+        fin = get_financial_expense(exclude_partial_months(date_range))
+        if fin:
+            st.caption(t("fin_items_note", lang).format(
+                fin=format_currency(fin), after=format_currency(totals["profit"] - fin),
+            ))
 
         st.write("")
         trend_col, map_col = st.columns([3, 2])

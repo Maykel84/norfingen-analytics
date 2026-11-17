@@ -362,6 +362,15 @@ def get_date_bounds() -> tuple[dt.date, dt.date]:
     return df["min_date"].iloc[0], df["max_date"].iloc[0]
 
 
+def get_data_start() -> dt.date:
+    """First date with ANY data: the earlier of the first order and the first
+    voucher. Costs (payroll, COGS, interest) are booked from 2019-01 while the first
+    order is in 2019-03, so an "all time" total that starts at the first ORDER silently
+    drops the first two months of cost and overstates profit."""
+    sql = "SELECT LEAST((SELECT MIN(order_date) FROM orders), (SELECT MIN(date) FROM vouchers)) AS d"
+    return run_query(sql)["d"].iloc[0]
+
+
 def get_available_years() -> list[int]:
     sql = "SELECT DISTINCT EXTRACT(YEAR FROM order_date)::int AS year FROM orders ORDER BY year"
     df = run_query(sql)
@@ -406,10 +415,23 @@ def exclude_partial_months(date_range: tuple | None) -> tuple | None:
     if not partial:
         return date_range
     cutoff = partial[0] - dt.timedelta(days=1)
-    start, end = date_range if date_range is not None else (get_date_bounds()[0], cutoff)
+    start, end = date_range if date_range is not None else (get_data_start(), cutoff)
     if start > cutoff:
         return date_range
     return (start, min(end, cutoff))
+
+
+def get_financial_expense(date_range: tuple | None = None) -> float:
+    """Net financial expense (accounts 8000-8999, debit-positive: interest on the
+    owner loan is 8150) booked in the period. It is NOT part of the dashboard's
+    profit (operating result = revenue - accounts 4000-7999)."""
+    where_sql, params = _date_range_clause(date_range, "v.date")
+    sql = f"""
+        SELECT COALESCE(SUM(p.amount), 0) AS expense
+        FROM postings p JOIN vouchers v ON v.id = p.voucher_id
+        WHERE p.account_number BETWEEN 8000 AND 8999 {where_sql}
+    """
+    return float(run_query(sql, params)["expense"].iloc[0])
 
 
 def snap_to_full_months(date_range: tuple) -> tuple | None:

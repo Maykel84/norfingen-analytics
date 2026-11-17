@@ -279,6 +279,11 @@ TRANSLATIONS = {
         "pl": "Wybrany zakres nie zawiera jeszcze pełnego miesiąca, więc koszt, zysk i margines są niedostępne.",
         "no": "Valgt periode inneholder ingen hel måned ennå, så kostnad, resultat og margin er utilgjengelig.",
     },
+    "fin_items_note": {
+        "en": "Financial expense in this period (interest on the owner loan, accounts 8xxx): {fin} — not deducted above. Result after financial items: {after}.",
+        "pl": "Koszty finansowe w tym okresie (odsetki od pożyczki właściciela, konta 8xxx): {fin} — nieuwzględnione powyżej. Wynik po pozycjach finansowych: {after}.",
+        "no": "Finanskostnader i perioden (renter på eierlånet, konto 8xxx): {fin} — ikke trukket fra ovenfor. Resultat etter finansposter: {after}.",
+    },
     "profit_definition": {
         "en": "Profit = operating result: revenue − COGS − payroll − operating costs (accounts 4000–7999), before financial items.",
         "pl": "Zysk = wynik operacyjny: przychód − COGS − wynagrodzenia − koszty operacyjne (konta 4000–7999), przed pozycjami finansowymi.",

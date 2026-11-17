@@ -165,9 +165,9 @@ def test_exclude_partial_months_range_entirely_in_open_month_is_unchanged():
 
 def test_exclude_partial_months_none_means_all_time_up_to_last_full_month():
     with _with_partial([dt.date(2026, 11, 1)]), patch.object(
-        metrics, "get_date_bounds", return_value=(dt.date(2020, 1, 1), dt.date(2026, 11, 16))
+        metrics, "get_data_start", return_value=dt.date(2019, 1, 2)
     ):
-        assert metrics.exclude_partial_months(None) == (dt.date(2020, 1, 1), dt.date(2026, 10, 31))
+        assert metrics.exclude_partial_months(None) == (dt.date(2019, 1, 2), dt.date(2026, 10, 31))
 
 
 def test_partial_months_in_range_overlap():
@@ -315,3 +315,17 @@ def test_write_off_gross_is_net_plus_reversed_vat_and_tile_matches_chart_total()
     # the Receivables tile is df.written_off.sum(); the chart's last running-total point is the same cumsum
     assert df["written_off"].sum() == pytest.approx(df["written_off"].cumsum().iloc[-1])
     assert df["written_off_gross"].sum() == pytest.approx(df["written_off"].sum() * 1.25, rel=1e-4)
+
+
+def test_data_start_is_earlier_of_first_order_and_first_voucher():
+    raw = pd.DataFrame({"d": [dt.date(2019, 1, 2)]})
+    with patch.object(metrics, "run_query", return_value=raw) as rq:
+        assert metrics.get_data_start() == dt.date(2019, 1, 2)
+    assert "LEAST" in rq.call_args.args[0]
+
+
+def test_financial_expense_uses_8xxx_accounts_and_date_range():
+    raw = pd.DataFrame({"expense": ["794791.61"]})
+    with patch.object(metrics, "run_query", return_value=raw) as rq:
+        assert metrics.get_financial_expense((dt.date(2019, 1, 1), dt.date(2025, 12, 31))) == pytest.approx(794791.61)
+    assert "BETWEEN 8000 AND 8999" in rq.call_args.args[0]
