@@ -181,15 +181,34 @@ def test_partial_months_in_range_overlap():
 def test_get_receivables_normalises_types():
     raw = pd.DataFrame({
         "order_id": [1], "customer": ["A"], "invoice_date": ["2026-01-02"], "due_date": ["2026-02-02"],
-        "paid_date": [None], "amount": ["125.00"], "invoice_status": ["OVERDUE"],
-        "days_past_due": [dt.timedelta(days=5)], "paid_late": [None],
+        "paid_date": [None], "amount": ["125.00"], "amount_net": ["100.00"], "invoice_status": ["OVERDUE"],
+        "days_past_due": [dt.timedelta(days=5)], "paid_late": [None], "write_off_pending": [True],
+        "write_off_planned_date": ["2026-12-23"],
     })
     with patch.object(metrics, "run_query", return_value=raw):
         df = metrics.get_receivables(2026)
     assert df["amount"].dtype == float
     assert df["days_past_due"].iloc[0] == 5
     assert df["paid_late"].dtype == bool and not df["paid_late"].iloc[0]
+    assert df["write_off_pending"].dtype == bool and df["write_off_pending"].iloc[0]
+    assert df["amount_net"].iloc[0] == 100.0
     assert pd.api.types.is_datetime64_any_dtype(df["invoice_date"])
+    assert pd.api.types.is_datetime64_any_dtype(df["write_off_planned_date"])
+
+
+def test_invoice_status_queries_join_the_view_and_never_read_orders_status():
+    raw = pd.DataFrame({
+        "order_id": [1], "customer": ["A"], "invoice_date": ["2026-01-02"], "due_date": ["2026-02-02"],
+        "paid_date": [None], "amount": ["1"], "amount_net": ["1"], "invoice_status": ["OPEN"],
+        "days_past_due": [-3], "paid_late": [False], "write_off_pending": [False], "write_off_planned_date": [None],
+    })
+    with patch.object(metrics, "run_query", return_value=raw) as rq:
+        metrics.get_receivables()
+        metrics.get_orders_invoice_payment_status(dt.date(2026, 11, 16), 14)
+    for call in rq.call_args_list:
+        sql = call.args[0]
+        assert "v_invoice_status" in sql
+        assert "o.status" not in sql and "orders.status" not in sql and "write_off_voucher_id" not in sql
 
 
 def test_get_write_offs_by_month_passes_year_param():

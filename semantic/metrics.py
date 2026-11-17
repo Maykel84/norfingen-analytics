@@ -941,109 +941,93 @@ def get_orders_window_stats(anchor_day: dt.date, days: int) -> dict:
     return {"order_count": int(df["order_count"].iloc[0]), "revenue": float(df["revenue"].iloc[0])}
 
 
-# Invoice status is DERIVED, never read from orders.status (that column is the
-# generator's modelled intent, not what happened). Same rule as the
-# `Faktury_sprzedazy` export in the generator repo (export_queries.py):
-#   WRITTEN_OFF  orders.write_off_voucher_id is set
-#   PAID         a customer payment is booked in the bank (INCOMING)
-#   OVERDUE      unpaid and the due date (a Saturday/Sunday moved to Monday)
-#                is before "today"
-#   OPEN         unpaid, not yet due
-# "Today" is the newest generated date, NOT the clock: the generator only runs
-# on weekdays, so the clock is routinely ahead of the data.
-_INVOICE_STATUS_CTES = """
+# Invoice status comes from the database view `v_invoice_status` (one row per order,
+# the single source of truth — the same way `v_pl_monthly.is_partial` defines the open
+# month). It is NEVER read from orders.status, which is the generator's modelled intent
+# (WRITTEN_OFF from the day the order is created). View columns used here:
+# invoice_status (PAID | OPEN | OVERDUE | WRITTEN_OFF; WRITTEN_OFF only once the 7830
+# voucher exists), is_overdue, paid_date, paid_late, write_off_pending (bad debt decided,
+# voucher not booked yet: the invoice stays OVERDUE) and write_off_planned_date.
+# "Today" is the newest generated date, NOT the clock: the generator only runs on
+# weekdays, so the clock is routinely ahead of the data.
+_DATA_TODAY_CTE = """
     data_today AS (
         SELECT GREATEST((SELECT MAX(date) FROM vouchers), (SELECT MAX(order_date) FROM orders)) AS d
-    ),
-    payments AS (
-        SELECT order_id, MIN(date) AS paid_date
-        FROM bank_transactions
-        WHERE transaction_type = 'INCOMING' AND order_id IS NOT NULL
-        GROUP BY order_id
     )
-"""
-_INVOICE_STATUS_CASE = """
-    CASE
-        WHEN o.write_off_voucher_id IS NOT NULL THEN 'WRITTEN_OFF'
-        WHEN pay.paid_date IS NOT NULL THEN 'PAID'
-        WHEN (o.invoice_date + o.invoices_due_in
-              + CASE EXTRACT(ISODOW FROM o.invoice_date + o.invoices_due_in)
-                    WHEN 6 THEN 2 WHEN 7 THEN 1 ELSE 0 END) < dtd.d THEN 'OVERDUE'
-        ELSE 'OPEN'
-    END
 """
 
 
 def get_orders_invoice_payment_status(anchor_day: dt.date, days: int) -> pd.DataFrame:
-    """Orders placed in the last `days` (ending at anchor_day), with whether
-    each has been invoiced (invoice_date set and not later than the newest
-    generated date) and its derived invoice_status (PAID / OPEN / OVERDUE /
-    WRITTEN_OFF) — the Today page's invoice/payment follow-up view."""
+    """Orders placed in the last `days` (ending at anchor_day), with whether each has
+    been invoiced (invoice_date set and not later than the newest generated date) and
+    its invoice_status from v_invoice_status — the Today page's follow-up view."""
     start = anchor_day - dt.timedelta(days=days - 1)
     sql = f"""
-        WITH {_INVOICE_STATUS_CTES}
+        WITH {_DATA_TODAY_CTE}
         SELECT
             o.id, o.order_date, c.name AS customer,
             SUM(ol.amount_excluding_vat_currency) AS amount,
             (o.invoice_date IS NOT NULL AND o.invoice_date <= dtd.d) AS invoiced,
-            {_INVOICE_STATUS_CASE} AS invoice_status
+            vis.invoice_status
         FROM orders o
         JOIN customers c ON c.id = o.customer_id
         JOIN order_lines ol ON ol.order_id = o.id
+        JOIN v_invoice_status vis ON vis.order_id = o.id
         CROSS JOIN data_today dtd
-        LEFT JOIN payments pay ON pay.order_id = o.id
         WHERE o.order_date BETWEEN :start AND :end
-        GROUP BY o.id, o.order_date, c.name, o.invoice_date, o.invoices_due_in,
-                 o.write_off_voucher_id, pay.paid_date, dtd.d
+        GROUP BY o.id, o.order_date, c.name, o.invoice_date, vis.invoice_status, dtd.d
         ORDER BY o.order_date DESC, o.id DESC
     """
     return run_query(sql, {"start": start, "end": anchor_day})
 
 
 def get_receivables(year: int | None = None) -> pd.DataFrame:
-    """One row per invoiced order (invoice_date not later than the newest
-    generated date) with its derived status — the base for the Receivables
-    page, which aggregates it in pandas (≈2k rows; one round trip).
+    """One row per invoiced order (invoice_date not later than the newest generated
+    date) with its status from v_invoice_status — the base for the Receivables page,
+    which aggregates it in pandas (≈2k rows; one round trip).
 
-    amount is GROSS (incl. VAT): that is what the customer owes and what a
-    write-off removes. due_date is the contractual date moved off a weekend
-    (same rule as the OVERDUE test); days_past_due is measured from it to the
-    newest generated date (negative = not yet due). paid_late: paid more than
-    7 days after the unadjusted due date (the generator's definition)."""
+    amount is GROSS (incl. VAT), amount_net is excluding VAT: gross is what the customer
+    owes and what a write-off removes from receivables, net is what the write-off costs
+    (ledger 7830). due_date is the contractual date moved off a weekend (the rule the
+    view's OVERDUE test uses); days_past_due is measured from it to the newest generated
+    date (negative = not yet due). paid_late, paid_date, write_off_pending and
+    write_off_planned_date come straight from the view."""
     year_clause = "AND EXTRACT(YEAR FROM o.invoice_date) = :year" if year is not None else ""
     sql = f"""
-        WITH {_INVOICE_STATUS_CTES},
+        WITH {_DATA_TODAY_CTE},
         due AS (
             SELECT o.id AS order_id,
-                   o.invoice_date + o.invoices_due_in AS raw_due,
                    o.invoice_date + o.invoices_due_in
                      + CASE EXTRACT(ISODOW FROM o.invoice_date + o.invoices_due_in)
                            WHEN 6 THEN 2 WHEN 7 THEN 1 ELSE 0 END AS due_date
             FROM orders o
         )
         SELECT o.id AS order_id, c.name AS customer, o.invoice_date,
-               due.due_date, pay.paid_date,
+               due.due_date, vis.paid_date,
                SUM(ol.amount_currency) AS amount,
-               {_INVOICE_STATUS_CASE} AS invoice_status,
+               SUM(ol.amount_excluding_vat_currency) AS amount_net,
+               vis.invoice_status,
                (dtd.d - due.due_date) AS days_past_due,
-               COALESCE(pay.paid_date > due.raw_due + 7, FALSE) AS paid_late
+               vis.paid_late, vis.write_off_pending, vis.write_off_planned_date
         FROM orders o
         JOIN customers c ON c.id = o.customer_id
         JOIN order_lines ol ON ol.order_id = o.id
         JOIN due ON due.order_id = o.id
+        JOIN v_invoice_status vis ON vis.order_id = o.id
         CROSS JOIN data_today dtd
-        LEFT JOIN payments pay ON pay.order_id = o.id
         WHERE o.invoice_date IS NOT NULL AND o.invoice_date <= dtd.d {year_clause}
-        GROUP BY o.id, c.name, o.invoice_date, due.due_date, due.raw_due, pay.paid_date,
-                 o.invoices_due_in, o.write_off_voucher_id, dtd.d
+        GROUP BY o.id, c.name, o.invoice_date, due.due_date, vis.paid_date, vis.invoice_status,
+                 dtd.d, vis.paid_late, vis.write_off_pending, vis.write_off_planned_date
         ORDER BY o.invoice_date, o.id
     """
     df = run_query(sql, {"year": year} if year is not None else None)
-    for col in ("invoice_date", "due_date", "paid_date"):
+    for col in ("invoice_date", "due_date", "paid_date", "write_off_planned_date"):
         df[col] = pd.to_datetime(df[col])
-    df["amount"] = df["amount"].astype(float)
+    for col in ("amount", "amount_net"):
+        df[col] = df[col].astype(float)
     df["days_past_due"] = pd.to_numeric(df["days_past_due"].map(lambda d: getattr(d, "days", d)))
-    df["paid_late"] = df["paid_late"].astype(bool)
+    for col in ("paid_late", "write_off_pending"):
+        df[col] = df[col].map(lambda v: bool(v) if pd.notna(v) else False)
     return df
 
 

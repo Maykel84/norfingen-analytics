@@ -63,6 +63,24 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     with cols[4]:
         kpi_tile(t("rcv_paid_late_count", lang), format_int(int(df["paid_late"].sum())), theme)
     st.caption(f"ℹ️ {t('rcv_gross_note', lang)}")
+    # Bad debt already decided but not booked yet: v_invoice_status keeps these OVERDUE
+    # until write_off_planned_date, so say so (and when) right under the Overdue figure.
+    pending = df[df["write_off_pending"]]
+    if not pending.empty:
+        planned = ", ".join(sorted({d.strftime("%Y-%m-%d") for d in pending["write_off_planned_date"].dropna()}))
+        st.caption(
+            f"ℹ️ {t('rcv_pending_note', lang).format(n=len(pending), amount=format_currency(pending['amount'].sum()), date=planned or '—')}"
+        )
+    # Reconciliation (all years only: with a year filter invoices are scoped by invoice year
+    # and the ledger by voucher year): net of WRITTEN_OFF invoices must equal ledger 7830.
+    if selected_year is None:
+        inv_net = round(float(df.loc[df["invoice_status"] == "WRITTEN_OFF", "amount_net"].sum()), 2)
+        gl_net = round(wo_net, 2)
+        if inv_net == gl_net:
+            st.caption(f"✓ {t('rcv_reconciled', lang).format(amount=format_currency(gl_net))}")
+        else:
+            st.warning(t("rcv_not_reconciled", lang).format(
+                inv=f"{inv_net:,.2f}", gl=f"{gl_net:,.2f}", diff=f"{inv_net - gl_net:,.2f}"))
 
     st.write("")
     left, right = st.columns(2)

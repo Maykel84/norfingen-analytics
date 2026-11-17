@@ -166,6 +166,21 @@ TRANSLATIONS = {
     "rcv_monthly": {"en": "Per month", "pl": "W miesiącu", "no": "Per måned"},
     "rcv_running_total": {"en": "Running total", "pl": "Narastająco", "no": "Akkumulert"},
     "rcv_no_write_offs": {"en": "No write-offs in this period.", "pl": "Brak odpisów w tym okresie.", "no": "Ingen tapsføringer i denne perioden."},
+    "rcv_pending_note": {
+        "en": "Overdue includes {n} invoice(s) ({amount}) already flagged as bad debt: they stay Overdue until the write-off is booked, planned {date}.",
+        "pl": "Po terminie obejmuje {n} fakt. ({amount}) już uznanych za nieściągalne: pozostają „po terminie” do zaksięgowania odpisu, planowanego na {date}.",
+        "no": "Forfalt inkluderer {n} faktura(er) ({amount}) som allerede er vurdert som tap: de forblir Forfalt til tapsføringen er bokført, planlagt {date}.",
+    },
+    "rcv_reconciled": {
+        "en": "Reconciled: net of the Written-off invoices = ledger account 7830 = {amount}.",
+        "pl": "Zgodne: netto spisanych faktur = konto 7830 w księdze = {amount}.",
+        "no": "Avstemt: netto for tapsførte fakturaer = hovedbokkonto 7830 = {amount}.",
+    },
+    "rcv_not_reconciled": {
+        "en": "Written-off invoices (net {inv}) do not match ledger account 7830 ({gl}); difference {diff}.",
+        "pl": "Spisane faktury (netto {inv}) nie zgadzają się z kontem 7830 w księdze ({gl}); różnica {diff}.",
+        "no": "Tapsførte fakturaer (netto {inv}) stemmer ikke med hovedbokkonto 7830 ({gl}); differanse {diff}.",
+    },
     "rcv_gross_note": {
         "en": "Outstanding, Overdue and the status chart include VAT. Written off (net) is account 7830 in the ledger and equals the end of the chart below; Written off (gross) adds the VAT reversed with it. Only booked write-offs count.",
         "pl": "Do zapłaty, Po terminie i wykres statusów zawierają VAT. Spisane (netto) to konto 7830 w księdze i równa się końcowi wykresu poniżej; Spisane (brutto) dodaje korygowany z nim VAT. Liczą się tylko zaksięgowane odpisy.",
