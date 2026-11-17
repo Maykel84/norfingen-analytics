@@ -336,10 +336,16 @@ TRANSLATIONS = {
     "flex_leave": {"en": "Flex leave", "pl": "Odbiór czasu (flex)", "no": "Avspasering"},
     "invoice_count": {"en": "Invoices", "pl": "Faktury", "no": "Fakturaer"},
     "suppliers_note": {
-        "en": "Spend and Unpaid are net of VAT and include the pass-through COGS payables (Ingram Micro, Microsoft/Azure) as well as purchase invoices.",
-        "pl": "Wydatki i Niezapłacone są netto (bez VAT) i obejmują zarówno faktury zakupu, jak i przelotowe zobowiązania COGS (Ingram Micro, Microsoft/Azure).",
-        "no": "Utgifter og Ubetalt er eksklusive MVA og omfatter både innkjøpsfakturaer og gjennomstrømmings-COGS (Ingram Micro, Microsoft/Azure).",
+        "en": "Spend and Unpaid are net of VAT and include the pass-through COGS payables as well as purchase invoices.",
+        "pl": "Wydatki i Niezapłacone są netto (bez VAT) i obejmują zarówno faktury zakupu, jak i przelotowe zobowiązania COGS.",
+        "no": "Utgifter og Ubetalt er eksklusive MVA og omfatter både innkjøpsfakturaer og gjennomstrømmings-COGS.",
     },
+    "cogs_by_supplier": {
+        "en": "COGS by supplier (share of net COGS)", "pl": "COGS wg dostawcy (udział w COGS netto)",
+        "no": "COGS per leverandør (andel av netto COGS)",
+    },
+    "all_suppliers": {"en": "All suppliers", "pl": "Wszyscy dostawcy", "no": "Alle leverandører"},
+    "cogs_filter_label": {"en": "Filter by supplier", "pl": "Filtruj wg dostawcy", "no": "Filtrer på leverandør"},
     "payroll_net": {"en": "Net pay disbursed", "pl": "Wypłacone wynagrodzenia netto", "no": "Utbetalt nettolønn"},
     "payroll_net_note": {
         "en": "Net pay actually paid out (after tax withholding), from payslips. The gross and employer-cost figures below come from the salary specifications and tie to ledger labor cost.",

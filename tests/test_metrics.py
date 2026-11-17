@@ -374,3 +374,14 @@ def test_payroll_gross_comes_from_specifications_and_employer_cost_uses_multipli
     assert "wage_type_id IN (100, 260)" in rq.call_args.args[0]
     assert df["employer_cost"].iloc[1] == pytest.approx(110 * metrics.EMPLOYER_COST_MULTIPLIER)
     assert df["yoy_growth_pct"].iloc[1] == pytest.approx(10.0)
+
+
+# --- suppliers and COGS (generator change 2026-11-17) --------------------------------
+
+def test_cogs_by_supplier_shares_sum_to_100_and_come_from_the_data():
+    raw = pd.DataFrame({"supplier": ["Ingram Micro AS", "Atea AS", "X"], "net_cogs": ["33", "26", "41"]})
+    with patch.object(metrics, "run_query", return_value=raw) as rq:
+        df = metrics.get_cogs_by_supplier((dt.date(2025, 1, 1), dt.date(2025, 12, 31)))
+    assert df["share_pct"].sum() == pytest.approx(100.0)
+    assert "cogs_payables" in rq.call_args.args[0]
+    assert "Ingram" not in rq.call_args.args[0]  # nothing hard-coded to a supplier name

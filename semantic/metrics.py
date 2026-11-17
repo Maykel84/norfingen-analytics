@@ -610,9 +610,9 @@ def get_product_revenue(date_range: tuple | None = None) -> pd.DataFrame:
 def get_supplier_spend(date_range: tuple | None = None) -> pd.DataFrame:
     """Spend by supplier, NET of VAT: purchase invoices (supplier_invoices) AND the
     pass-through COGS payables (cogs_payables, accounts 4291/4292). The COGS
-    payables are ~86% of all supplier spend (Ingram Micro and the Microsoft/Azure
-    resale), so leaving them out showed Microsoft at 1.9M instead of ~26M and an
-    "unpaid" of 0.1M instead of 2.1M net."""
+    payables are ~86% of all supplier spend, so leaving them out understated every
+    COGS supplier and the unpaid amount. Suppliers come from the data, nothing is
+    hard-coded (13 today: 6 COGS suppliers, Microsoft Norge AS also invoices directly)."""
     where_sql, params = _date_range_clause(date_range, "src.d")
     sql = f"""
         WITH src AS (
@@ -634,6 +634,24 @@ def get_supplier_spend(date_range: tuple | None = None) -> pd.DataFrame:
         ORDER BY spend DESC
     """
     return run_query(sql, params)
+
+
+def get_cogs_by_supplier(date_range: tuple | None = None) -> pd.DataFrame:
+    """Net pass-through COGS per supplier (cogs_payables, accounts 4291/4292, by
+    accrual date) with each supplier's share of the total — the supplier
+    concentration view. Names come from suppliers.name; shares sum to 100%."""
+    where_sql, params = _date_range_clause(date_range, "cp.accrual_date")
+    sql = f"""
+        SELECT s.name AS supplier, SUM(cp.amount_excluding_vat_currency) AS net_cogs
+        FROM cogs_payables cp JOIN suppliers s ON s.id = cp.supplier_id
+        WHERE 1=1 {where_sql}
+        GROUP BY s.name ORDER BY net_cogs DESC
+    """
+    df = run_query(sql, params)
+    df["net_cogs"] = df["net_cogs"].astype(float)
+    total = df["net_cogs"].sum()
+    df["share_pct"] = df["net_cogs"] / total * 100 if total else 0.0
+    return df
 
 
 def get_staffing_summary() -> pd.DataFrame:

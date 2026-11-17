@@ -7,6 +7,7 @@ from semantic.metrics import (
     get_absence_by_department,
     get_absence_trend,
     get_cash_flow_trend,
+    get_cogs_by_supplier,
     get_cost_by_account,
     get_customer_lifecycle_events,
     get_payroll_by_employee,
@@ -17,7 +18,7 @@ from semantic.metrics import (
     get_supplier_spend,
     get_utilization_trend,
 )
-from ui.charts import bar_breakdown, grouped_bar_compare, line_over_time
+from ui.charts import SEQUENTIAL, bar_breakdown, donut_chart, grouped_bar_compare, line_over_time
 from ui.components import format_currency, format_int
 from ui.i18n import t, t_account, t_department, t_employment_type
 
@@ -68,6 +69,21 @@ def _suppliers_section(lang: str, theme: str, date_range: tuple | None) -> None:
     table[t("unpaid", lang)] = table[t("unpaid", lang)].map(format_currency)
     st.dataframe(table, use_container_width=True, hide_index=True)
     st.caption(f"ℹ️ {t('suppliers_note', lang)}")
+
+    # Concentration: share of net pass-through COGS per supplier (names from the data).
+    cogs = get_cogs_by_supplier(date_range)
+    if not cogs.empty:
+        st.write("")
+        st.markdown(f'<div class="section-label">{t("cogs_by_supplier", lang)}</div>', unsafe_allow_html=True)
+        ramp = list(reversed(SEQUENTIAL[theme]))  # biggest supplier = strongest shade
+        colors = [ramp[min(i, len(ramp) - 1)] for i in range(len(cogs))]
+        fig = donut_chart(
+            [f"{r.supplier} · {r.share_pct:.1f}% · {format_currency(r.net_cogs)}" for r in cogs.itertuples()],
+            cogs["net_cogs"].tolist(), colors, theme,
+            center_text=format_currency(cogs["net_cogs"].sum()),
+            customdata=[f"{r.share_pct:.1f}%" for r in cogs.itertuples()],
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
 def _staffing_section(lang: str, theme: str) -> None:

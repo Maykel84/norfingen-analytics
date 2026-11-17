@@ -172,6 +172,15 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     cols = st.columns(2)
     with cols[0]:
         kpi_tile(t("liq_cogs_unpaid", lang), format_currency(unpaid_cogs["amount_gross"].sum()), theme)
+    # three accruals per account and month (one per supplier): offer a supplier filter,
+    # keep the table sorted by accrual date (newest first, as the query returns it)
+    all_label = t("all_suppliers", lang)
+    suppliers = [all_label] + sorted(cogs_view["supplier"].unique()) if not cogs_view.empty else [all_label]
+    with cols[1]:
+        chosen = st.selectbox(t("cogs_filter_label", lang), suppliers, key="cogs_supplier_filter")
+    if chosen != all_label:
+        cogs_view = cogs_view[cogs_view["supplier"] == chosen]
+    cogs_view = cogs_view.sort_values(["accrual_date", "supplier"], ascending=[False, True])
     if not cogs_view.empty:
         tbl = pd.DataFrame({
             t("liq_accrual_date", lang): _date(cogs_view["accrual_date"]),
