@@ -47,14 +47,20 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     by_status = df.groupby("invoice_status").agg(amount=("amount", "sum"), n=("order_id", "count"))
     by_status = by_status.reindex(STATUS_ORDER).fillna(0)
 
-    cols = st.columns(4)
+    # Write-off tiles come from the same ledger query as the chart below (account 7830),
+    # so tile == last point of the running total by construction.
+    wo_net = float(write_offs["written_off"].sum()) if not write_offs.empty else 0.0
+    wo_gross = float(write_offs["written_off_gross"].sum()) if not write_offs.empty else 0.0
+    cols = st.columns(5)
     with cols[0]:
         kpi_tile(t("rcv_outstanding", lang), format_currency(unpaid["amount"].sum()), theme)
     with cols[1]:
         kpi_tile(t("rcv_overdue_amount", lang), format_currency(by_status.loc["OVERDUE", "amount"]), theme)
     with cols[2]:
-        kpi_tile(t("rcv_written_off_amount", lang), format_currency(by_status.loc["WRITTEN_OFF", "amount"]), theme)
+        kpi_tile(t("rcv_written_off_net", lang), format_currency(wo_net), theme)
     with cols[3]:
+        kpi_tile(t("rcv_written_off_gross", lang), format_currency(wo_gross), theme)
+    with cols[4]:
         kpi_tile(t("rcv_paid_late_count", lang), format_int(int(df["paid_late"].sum())), theme)
     st.caption(f"ℹ️ {t('rcv_gross_note', lang)}")
 

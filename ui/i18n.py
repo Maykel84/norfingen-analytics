@@ -149,7 +149,8 @@ TRANSLATIONS = {
     # Receivables page
     "rcv_outstanding": {"en": "Outstanding", "pl": "Do zapłaty", "no": "Utestående"},
     "rcv_overdue_amount": {"en": "Overdue", "pl": "Po terminie", "no": "Forfalt"},
-    "rcv_written_off_amount": {"en": "Written off", "pl": "Spisane w straty", "no": "Tapsført"},
+    "rcv_written_off_net": {"en": "Written off (net)", "pl": "Spisane (netto)", "no": "Tapsført (netto)"},
+    "rcv_written_off_gross": {"en": "Written off (gross)", "pl": "Spisane (brutto)", "no": "Tapsført (brutto)"},
     "rcv_paid_late_count": {"en": "Paid late", "pl": "Zapłacone z opóźnieniem", "no": "Betalt for sent"},
     "rcv_status_split": {"en": "Invoices by status", "pl": "Faktury wg statusu", "no": "Fakturaer etter status"},
     "rcv_invoices": {"en": "invoices", "pl": "faktur", "no": "fakturaer"},
@@ -166,9 +167,9 @@ TRANSLATIONS = {
     "rcv_running_total": {"en": "Running total", "pl": "Narastająco", "no": "Akkumulert"},
     "rcv_no_write_offs": {"en": "No write-offs in this period.", "pl": "Brak odpisów w tym okresie.", "no": "Ingen tapsføringer i denne perioden."},
     "rcv_gross_note": {
-        "en": "Invoice amounts include VAT. Write-offs below are the net expense on account 7830 (the VAT part is reversed separately).",
-        "pl": "Kwoty faktur zawierają VAT. Odpisy poniżej to koszt netto na koncie 7830 (część VAT jest korygowana osobno).",
-        "no": "Fakturabeløp inkluderer MVA. Tapsføringene under er netto kostnad på konto 7830 (MVA-delen reverseres separat).",
+        "en": "Outstanding, Overdue and the status chart include VAT. Written off (net) is account 7830 in the ledger and equals the end of the chart below; Written off (gross) adds the VAT reversed with it. Only booked write-offs count.",
+        "pl": "Do zapłaty, Po terminie i wykres statusów zawierają VAT. Spisane (netto) to konto 7830 w księdze i równa się końcowi wykresu poniżej; Spisane (brutto) dodaje korygowany z nim VAT. Liczą się tylko zaksięgowane odpisy.",
+        "no": "Utestående, Forfalt og statusdiagrammet inkluderer MVA. Tapsført (netto) er konto 7830 i hovedboken og tilsvarer slutten av diagrammet under; Tapsført (brutto) legger til MVA som reverseres. Kun bokførte tapsføringer teller.",
     },
     # Overview
     "all_years": {"en": "All years", "pl": "Wszystkie lata", "no": "Alle år"},

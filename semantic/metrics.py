@@ -1003,18 +1003,26 @@ def get_receivables(year: int | None = None) -> pd.DataFrame:
 
 
 def get_write_offs_by_month(year: int | None = None) -> pd.DataFrame:
-    """Receivable write-offs (account 7830 "Tap på krav") per voucher month.
-    postings.amount is debit-positive, so a write-off is a positive number."""
+    """Receivable write-offs per voucher month, from the ledger. written_off is the
+    NET expense on account 7830 "Tap på krav" (postings.amount is debit-positive,
+    so a write-off is positive); written_off_gross is what leaves receivables
+    (credit on 1500 of the same vouchers) = net + the VAT reversed on 2700.
+    Only booked write-offs count: an invoice flagged for write-off whose voucher
+    does not exist yet (written off 120 days after the due date) is not here."""
     year_clause = "AND EXTRACT(YEAR FROM v.date) = :year" if year is not None else ""
     sql = f"""
-        SELECT DATE_TRUNC('month', v.date) AS period, SUM(p.amount) AS written_off
+        SELECT DATE_TRUNC('month', v.date) AS period,
+               SUM(p.amount) FILTER (WHERE p.account_number = 7830) AS written_off,
+               -SUM(p.amount) FILTER (WHERE p.account_number = 1500) AS written_off_gross
         FROM vouchers v JOIN postings p ON p.voucher_id = v.id
-        WHERE p.account_number = 7830 {year_clause}
+        WHERE p.account_number IN (7830, 1500)
+          AND v.id IN (SELECT voucher_id FROM postings WHERE account_number = 7830) {year_clause}
         GROUP BY 1 ORDER BY 1
     """
     df = run_query(sql, {"year": year} if year is not None else None)
     df["period"] = _to_naive_datetime(df["period"])
     df["written_off"] = df["written_off"].astype(float)
+    df["written_off_gross"] = df["written_off_gross"].astype(float)
     return df
 
 

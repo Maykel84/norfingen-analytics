@@ -193,7 +193,7 @@ def test_get_receivables_normalises_types():
 
 
 def test_get_write_offs_by_month_passes_year_param():
-    raw = pd.DataFrame({"period": [pd.Timestamp("2026-01-01")], "written_off": ["41616.79"]})
+    raw = pd.DataFrame({"period": [pd.Timestamp("2026-01-01")], "written_off": ["41616.79"], "written_off_gross": ["52020.99"]})
     with patch.object(metrics, "run_query", return_value=raw) as rq:
         df = metrics.get_write_offs_by_month(2026)
     assert rq.call_args.args[1] == {"year": 2026}
@@ -303,3 +303,15 @@ def test_coverage_map_single_city_does_not_zoom_to_infinity():
 
     _, zoom = _fit_map_view(pd.DataFrame({"lat": [59.9], "lon": [10.7]}))
     assert zoom <= 6.0
+
+
+def test_write_off_gross_is_net_plus_reversed_vat_and_tile_matches_chart_total():
+    raw = pd.DataFrame({
+        "period": [pd.Timestamp("2022-02-01"), pd.Timestamp("2026-01-01")],
+        "written_off": ["256381.33", "41616.79"], "written_off_gross": ["320476.66", "52020.99"],
+    })
+    with patch.object(metrics, "run_query", return_value=raw):
+        df = metrics.get_write_offs_by_month()
+    # the Receivables tile is df.written_off.sum(); the chart's last running-total point is the same cumsum
+    assert df["written_off"].sum() == pytest.approx(df["written_off"].cumsum().iloc[-1])
+    assert df["written_off_gross"].sum() == pytest.approx(df["written_off"].sum() * 1.25, rel=1e-4)
