@@ -10,6 +10,7 @@ from semantic.metrics import (
     get_cost_by_account,
     get_customer_lifecycle_events,
     get_payroll_by_employee,
+    get_partial_months_in_range,
     get_payroll_trend,
     get_product_revenue,
     get_staffing_summary,
@@ -242,11 +243,19 @@ def _cash_flow_section(lang: str, theme: str, date_range: tuple | None) -> None:
     melted = df.melt(id_vars=["period"], value_vars=["incoming", "outgoing"], var_name="flow", value_name="amount")
     melted["flow"] = melted["flow"].map({"incoming": t("incoming", lang), "outgoing": t("outgoing", lang)})
     melted = melted.rename(columns={"flow": t("flow_type", lang)})
+    # Same grey "month in progress" band as the Overview/Time Analysis/VAT charts
+    # (line_over_time's partial_periods): the open month's bank movements are not
+    # final — payroll, supplier and VAT payments land later in the month — so its
+    # incoming/outgoing points must not read as a collapse.
+    open_months = get_partial_months_in_range(date_range)
     fig = line_over_time(
         melted, "period", "amount", t("flow_type", lang), t("cash_flow", lang), theme, value_suffix=" kr",
         x_title=t("month", lang), y_title=t("amount", lang), granularity="month",
+        partial_periods=open_months, partial_label=t("partial_month_label", lang),
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    if open_months:
+        st.caption(f"ℹ️ {t('cash_partial_note', lang).format(month=open_months[-1].strftime('%Y-%m'))}")
 
 
 def _lifecycle_section(lang: str, theme: str, date_range: tuple | None) -> None:

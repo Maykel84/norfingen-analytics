@@ -254,6 +254,11 @@ TRANSLATIONS = {
         "pl": "{month}: miesiąc w toku, koszty księgowane na koniec miesiąca — zysk i marża za ten miesiąc nie są ostateczne.",
         "no": "{month}: måneden pågår, kostnader bokføres ved månedsslutt — resultat og margin for den er ikke endelige.",
     },
+    "cash_partial_note": {
+        "en": "{month}: month in progress, not final — payroll, supplier and VAT payments are booked later in the month.",
+        "pl": "{month}: miesiąc w toku, dane nie są ostateczne — wynagrodzenia, płatności dla dostawców i VAT są księgowane później w miesiącu.",
+        "no": "{month}: måneden pågår, ikke endelig — lønn, leverandør- og MVA-betalinger bokføres senere i måneden.",
+    },
     "range_aligned": {
         "en": "Range aligned to full months: {start} … {end}.",
         "pl": "Zakres dopasowany do pełnych miesięcy: {start} … {end}.",
