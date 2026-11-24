@@ -4,7 +4,7 @@ import streamlit as st
 
 from semantic.metrics import (
     get_bank_balance_daily, get_cogs_payables, get_financing_structure, get_owner_loan_monthly,
-    get_partial_months_in_range, get_vat_monthly, get_vat_settlements,
+    get_partial_month_starts, get_partial_months_in_range, get_vat_monthly, get_vat_settlements,
 )
 from ui.charts import CATEGORICAL, CHROME, line_over_time, stacked_bar_over_time
 from ui.components import format_currency, format_pct, kpi_tile
@@ -46,8 +46,14 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     cols = st.columns(4)
     if not bank_view.empty:
         low = bank_view.loc[bank_view["balance"].idxmin()]
+        # current balance + the date it is as of; if the open month is in view, payroll and COGS
+        # for it are not booked yet, which is why the balance is temporarily inflated
+        as_of = bank_view["day"].iloc[-1]
+        open_in_view = [p for p in get_partial_months_in_range((bank_view["day"].min().date(), as_of.date()))]
         with cols[0]:
             kpi_tile(t("liq_bank_balance", lang), format_currency(bank_view["balance"].iloc[-1]), theme)
+            st.caption(t("liq_as_of", lang).format(date=f"{as_of:%Y-%m-%d}")
+                       + (f" · {t('liq_bank_open_note', lang)}" if open_in_view else ""))
         with cols[1]:
             kpi_tile(t("liq_min_balance", lang), format_currency(low["balance"]), theme)
             st.caption(f"{t('liq_on', lang)} {low['day']:%Y-%m-%d}")
@@ -74,6 +80,11 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     if not bank_view.empty:
         month_end = bank_view.assign(period=bank_view["day"].dt.to_period("M").dt.to_timestamp()).groupby(
             "period", as_index=False).last()[["period", "balance"]]
+        # the month in progress is not plotted: the receipts are in but payroll and COGS are
+        # booked at month end, so its balance is not comparable with a month-end figure
+        open_starts = {pd.Timestamp(p) for p in get_partial_month_starts()}
+        hidden_open = month_end[month_end["period"].isin(open_starts)]
+        month_end = month_end[~month_end["period"].isin(open_starts)]
         fig = line_over_time(
             month_end, "period", "balance", None, "", theme, value_suffix=" kr",
             x_title=t("month", lang), y_title=t("amount", lang), granularity="month", line_color=CATEGORICAL[theme][0],
@@ -87,6 +98,9 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         ))
         fig.update_layout(height=380)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        if not hidden_open.empty:
+            hidden_month = hidden_open["period"].iloc[-1].strftime("%Y-%m")
+            st.caption(f"ℹ️ {t('liq_bank_hidden_note', lang).format(month=hidden_month)}")
 
     # ---- owner loan + financing structure -----------------------------------
     st.write("")

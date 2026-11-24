@@ -94,6 +94,17 @@ TRANSLATIONS = {
     },
     # Liquidity & financing page
     "liq_bank_balance": {"en": "Bank balance", "pl": "Saldo bankowe", "no": "Banksaldo"},
+    "liq_as_of": {"en": "as of {date}", "pl": "stan na {date}", "no": "per {date}"},
+    "liq_bank_open_note": {
+        "en": "payroll and COGS for the current month are not booked yet",
+        "pl": "wynagrodzenia i COGS za bieżący miesiąc nie są jeszcze zaksięgowane",
+        "no": "lønn og COGS for inneværende måned er ikke bokført ennå",
+    },
+    "liq_bank_hidden_note": {
+        "en": "{month} (month in progress) is not plotted: payroll and COGS are booked at month end, so its balance is not comparable. The tile shows the current balance.",
+        "pl": "{month} (miesiąc w toku) nie jest na wykresie: wynagrodzenia i COGS są księgowane na koniec miesiąca, więc jego saldo nie jest porównywalne. Kafelek pokazuje aktualne saldo.",
+        "no": "{month} (måned pågår) er ikke tegnet: lønn og COGS bokføres ved månedsslutt, så saldoen er ikke sammenlignbar. Flisen viser gjeldende saldo.",
+    },
     "liq_min_balance": {"en": "Lowest balance", "pl": "Najniższe saldo", "no": "Laveste saldo"},
     "liq_on": {"en": "on", "pl": "w dniu", "no": "den"},
     "liq_bank_title": {"en": "Bank balance (month end)", "pl": "Saldo bankowe (koniec miesiąca)", "no": "Banksaldo (månedsslutt)"},
