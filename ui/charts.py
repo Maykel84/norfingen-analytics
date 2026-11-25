@@ -323,11 +323,39 @@ def stacked_bar_over_time(
     return fig
 
 
+# One distinct color per absence type (hour_entries.activity_type), the same in every
+# absence chart and legend. Six hues spread over hue AND lightness so no two merge, in
+# the active palette family; dark-mode values are light enough to stand off the card.
+ABSENCE_COLORS = {
+    "orchid-cobalt": {
+        "light": {"VACATION": "#2f2fe4", "SICK": "#d552a3", "PARENTAL_LEAVE": "#0f6e64",
+                  "CHILD_CARE_LEAVE": "#d49a1f", "FLEX_LEAVE": "#8e1ea2", "WELFARE_LEAVE": "#6b7280"},
+        "dark": {"VACATION": "#8c8cff", "SICK": "#d552a3", "PARENTAL_LEAVE": "#98e8de",
+                 "CHILD_CARE_LEAVE": "#e8b84a", "FLEX_LEAVE": "#b86bd6", "WELFARE_LEAVE": "#a3a6b5"},
+    },
+    "classic": {
+        "light": {"VACATION": "#1f6b3a", "SICK": "#c8661f", "PARENTAL_LEAVE": "#4f5aa8",
+                  "CHILD_CARE_LEAVE": "#b7791f", "FLEX_LEAVE": "#8e1ea2", "WELFARE_LEAVE": "#6b7280"},
+        "dark": {"VACATION": "#57a366", "SICK": "#c97830", "PARENTAL_LEAVE": "#5f6bbd",
+                 "CHILD_CARE_LEAVE": "#e0b04a", "FLEX_LEAVE": "#b86bd6", "WELFARE_LEAVE": "#a3a6b5"},
+    },
+}
+
+
+def absence_colors(theme: str) -> dict[str, str]:
+    """activity_type code -> hex for the absence charts, in the active palette."""
+    family = "orchid-cobalt" if PALETTE == "orchid-cobalt" else "classic"
+    return ABSENCE_COLORS[family][theme]
+
+
 def bar_breakdown(
     df: pd.DataFrame, x: str, y: str, color: str | None, title: str, theme: str, orientation: str = "v",
     value_suffix: str = "", color_scale: str | None = None, x_title: str | None = None, y_title: str | None = None,
+    color_map: dict[str, str] | None = None,
 ) -> go.Figure:
-    """color_scale: None (flat sage), "sage", or "warm" — when set (and
+    """color_map: series name -> hex, for charts with more series than the 3-hue
+    categorical palette can separate (without it the 4th+ series all fall back to
+    one neutral gray and become indistinguishable). color_scale: None (flat sage), "sage", or "warm" — when set (and
     color is None), each bar is tinted by its own value on that sequential
     ramp instead of one flat color, so a ranked breakdown reads with some
     visual life rather than as identical same-color bars. x_title/y_title:
@@ -365,6 +393,7 @@ def bar_breakdown(
             color=color,
             orientation=orientation,
             color_discrete_sequence=palette,
+            color_discrete_map=color_map,
         )
     fig.update_traces(marker_line_width=0)
     fig.update_layout(**_base_layout(theme, title))

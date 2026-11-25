@@ -216,7 +216,7 @@ TRANSLATIONS = {
     # Clients
     "search_clients": {"en": "Search clients", "pl": "Szukaj klientów", "no": "Søk kunder"},
     "sector": {"en": "Sector", "pl": "Sektor", "no": "Sektor"},
-    "size_band": {"en": "Size", "pl": "Wielkość", "no": "Størrelse"},
+    "size_band": {"en": "Size (by revenue)", "pl": "Wielkość (wg przychodu)", "no": "Størrelse (etter inntekt)"},
     "add_to_compare": {"en": "Compare", "pl": "Porównaj", "no": "Sammenlign"},
     "compare_selected": {"en": "Compare selected", "pl": "Porównaj wybrane", "no": "Sammenlign valgte"},
     "compare_limit": {
@@ -292,6 +292,16 @@ TRANSLATIONS = {
         "en": "{month}: month in progress, not final — payroll, supplier and VAT payments are booked later in the month.",
         "pl": "{month}: miesiąc w toku, dane nie są ostateczne — wynagrodzenia, płatności dla dostawców i VAT są księgowane później w miesiącu.",
         "no": "{month}: måneden pågår, ikke endelig — lønn, leverandør- og MVA-betalinger bokføres senere i måneden.",
+    },
+    "partial_month_not_plotted": {
+        "en": "{month} (month in progress) is not plotted for cost, profit and margin: payroll and COGS are booked at month end.",
+        "pl": "{month} (miesiąc w toku) nie jest na wykresach kosztu, zysku i marży: wynagrodzenia i COGS są księgowane na koniec miesiąca.",
+        "no": "{month} (måned pågår) er ikke tegnet for kostnad, resultat og margin: lønn og COGS bokføres ved månedsslutt.",
+    },
+    "june_holiday_pay_note": {
+        "en": "June has a seasonal holiday-pay (feriepenger) artefact: payroll cost drops to ~0.16M because holiday pay is paid out of the accrual, so operating profit in June is higher than in other months.",
+        "pl": "Czerwiec ma sezonowy artefakt feriepenger: koszt płac spada do ok. 0,16 mln, bo feriepenger są wypłacane z rezerwy, więc zysk operacyjny w czerwcu jest wyższy niż w innych miesiącach.",
+        "no": "Juni har en sesongeffekt fra feriepenger: lønnskostnaden faller til ca. 0,16 mill. fordi feriepenger utbetales fra avsetningen, så driftsresultatet i juni er høyere enn i andre måneder.",
     },
     "range_aligned": {
         "en": "Range aligned to full months: {start} … {end}.",

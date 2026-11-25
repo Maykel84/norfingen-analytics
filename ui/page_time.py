@@ -136,9 +136,16 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
 
         st.write("")
         st.markdown(f'<div class="section-label">{t("over_time", lang)}</div>', unsafe_allow_html=True)
+        cost_measures = ("cost", "profit", "margin_pct")
+        # Cost, profit and margin are not plotted for the month in progress (its payroll and COGS are
+        # booked at month end, so the point would be an artefact that also stretches the Y axis);
+        # in a custom range the point stays, shaded as before.
+        hide_open = snapped is not None and not is_custom
         for m in selected_measures:
+            cost_like = m in cost_measures
             ts_df = get_measure(
-                m, group_by=[], date_range=series_range, granularity=granularity, filters=filters,
+                m, group_by=[], date_range=snapped if (cost_like and hide_open) else series_range,
+                granularity=granularity, filters=filters,
             )
             if ts_df.empty or "period" not in ts_df.columns:
                 continue
@@ -147,12 +154,19 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
                 ts_df.sort_values("period"), "period", y_col, None, t(m, lang), theme,
                 x_title=t(granularity, lang), y_title=t(m, lang), granularity=granularity,
                 line_color=measure_color(m, theme),
-                partial_periods=open_months if granularity == "month" and m in ("cost", "profit", "margin_pct") else None,
+                partial_periods=open_months if (granularity == "month" and cost_like and not hide_open) else None,
                 partial_label=t("partial_month_label", lang),
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        if granularity == "month" and any(m in ("cost", "profit", "margin_pct") for m in selected_measures):
-            partial_month_caption(open_months, lang)
+            # June: holiday pay (feriepenger) is paid out of the accrual, so payroll cost drops from
+            # ~1.5M to ~0.16M and the operating result spikes — a seasonal artefact, not performance.
+            if cost_like and granularity == "month" and (pd.to_datetime(ts_df["period"]).dt.month == 6).any():
+                st.caption(f"ℹ️ {t('june_holiday_pay_note', lang)}")
+        if granularity == "month" and open_months and any(m in cost_measures for m in selected_measures):
+            if hide_open:
+                st.caption(f"ℹ️ {t('partial_month_not_plotted', lang).format(month=open_months[-1].strftime('%Y-%m'))}")
+            else:
+                partial_month_caption(open_months, lang)
 
         if group_by:
             st.write("")

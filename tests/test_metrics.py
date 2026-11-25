@@ -385,3 +385,14 @@ def test_cogs_by_supplier_shares_sum_to_100_and_come_from_the_data():
     assert df["share_pct"].sum() == pytest.approx(100.0)
     assert "cogs_payables" in rq.call_args.args[0]
     assert "Ingram" not in rq.call_args.args[0]  # nothing hard-coded to a supplier name
+
+
+# --- absence colors (round 3) -------------------------------------------------------
+
+def test_every_absence_type_has_its_own_color_in_every_theme_and_palette():
+    from ui.charts import ABSENCE_COLORS
+
+    for family, themes in ABSENCE_COLORS.items():
+        for theme, colors in themes.items():
+            assert set(colors) == set(metrics.ABSENCE_ACTIVITY_TYPES), (family, theme)
+            assert len(set(colors.values())) == len(colors), f"duplicate colour in {family}/{theme}"

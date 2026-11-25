@@ -18,7 +18,7 @@ from semantic.metrics import (
     get_supplier_spend,
     get_utilization_trend,
 )
-from ui.charts import SEQUENTIAL, bar_breakdown, donut_chart, grouped_bar_compare, line_over_time
+from ui.charts import SEQUENTIAL, absence_colors, bar_breakdown, donut_chart, grouped_bar_compare, line_over_time
 from ui.components import format_currency, format_int
 from ui.i18n import t, t_account, t_department, t_employment_type
 
@@ -143,6 +143,8 @@ def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> Non
 
     st.write("")
     st.markdown(f'<div class="section-label">{t("absences", lang)}</div>', unsafe_allow_html=True)
+    # same label -> color mapping for both absence charts (and their legends)
+    absence_color_map = {t(_ABSENCE_LABELS[code], lang): hex_ for code, hex_ in absence_colors(theme).items()}
     absence_df = get_absence_trend(granularity=granularity, date_range=date_range)
     if not absence_df.empty:
         absence_df = _label_period(absence_df)
@@ -151,7 +153,7 @@ def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> Non
         )
         fig_absence = bar_breakdown(
             absence_df, period_col, "days", t("activity_type", lang), t("days", lang), theme,
-            x_title=period_title, y_title=t("days", lang),
+            x_title=period_title, y_title=t("days", lang), color_map=absence_color_map,
         )
         st.plotly_chart(fig_absence, use_container_width=True, config={"displayModeBar": False})
 
@@ -172,7 +174,7 @@ def _utilization_section(lang: str, theme: str, date_range: tuple | None) -> Non
     )
     fig_dept = bar_breakdown(
         dept_df, "department", "days", t("activity_type", lang), t("days", lang), theme,
-        x_title=t("department", lang), y_title=t("days", lang),
+        x_title=t("department", lang), y_title=t("days", lang), color_map=absence_color_map,
     )
     st.plotly_chart(fig_dept, use_container_width=True, config={"displayModeBar": False})
 
