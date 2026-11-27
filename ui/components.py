@@ -36,12 +36,14 @@ def format_delta_pct(current: float, previous: float) -> str | None:
     return f"{sign}{change:.1f}%"
 
 
-def kpi_tile(label: str, value: str, theme: str, delta: str | None = None, spark_values=None) -> None:
+def kpi_tile(label: str, value: str, theme: str, delta: str | None = None, spark_values=None, note: str | None = None) -> None:
     t = tokens(theme)
     delta_html = ""
     if delta is not None:
         cls = "kpi-delta-up" if delta.startswith("+") else "kpi-delta-down" if delta.startswith("-") else ""
         delta_html = f'<div class="{cls}">{delta}</div>'
+    if note:
+        delta_html += f'<div class="kpi-note">{note}</div>'
     st.markdown(
         f"""
         <div class="kpi-tile">

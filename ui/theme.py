@@ -372,6 +372,7 @@ def inject_global_css(theme: str) -> str:
         overflow: hidden;
         text-overflow: ellipsis;
     }}
+    .kpi-note {{ color: {t['text_muted']}; font-size: 13px; margin-top: 4px; }}
     .kpi-delta-up {{ color: {t['good']}; font-size: 13px; font-weight: 600; }}
     .kpi-delta-down {{ color: {t['critical']}; font-size: 13px; font-weight: 600; }}
 

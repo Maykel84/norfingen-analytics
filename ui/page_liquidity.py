@@ -51,12 +51,11 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
         as_of = bank_view["day"].iloc[-1]
         open_in_view = [p for p in get_partial_months_in_range((bank_view["day"].min().date(), as_of.date()))]
         with cols[0]:
-            kpi_tile(t("liq_bank_balance", lang), format_currency(bank_view["balance"].iloc[-1]), theme)
-            st.caption(t("liq_as_of", lang).format(date=f"{as_of:%Y-%m-%d}")
-                       + (f" · {t('liq_bank_open_note', lang)}" if open_in_view else ""))
+            kpi_tile(t("liq_bank_balance", lang), format_currency(bank_view["balance"].iloc[-1]), theme,
+                     note=t("liq_as_of", lang).format(date=f"{as_of:%Y-%m-%d}") + (" *" if open_in_view else ""))
         with cols[1]:
-            kpi_tile(t("liq_min_balance", lang), format_currency(low["balance"]), theme)
-            st.caption(f"{t('liq_on', lang)} {low['day']:%Y-%m-%d}")
+            kpi_tile(t("liq_min_balance", lang), format_currency(low["balance"]), theme,
+                     note=f"{t('liq_on', lang)} {low['day']:%Y-%m-%d}")
     with cols[2]:
         # Outstanding principal at the end of the viewed period (loan rows stop at the
         # last instalment, so a later year is judged by the final row, not shown as 0).
@@ -67,13 +66,13 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             kpi_tile(t("liq_loan_outstanding", lang), format_currency(outstanding), theme)
         else:
             repaid = upto[upto["principal_repaid"] > 0]
-            kpi_tile(t("liq_loan_outstanding", lang), t("liq_repaid", lang), theme)
-            if not repaid.empty:
-                st.caption(t("liq_last_instalment", lang).format(month=f"{repaid['period'].iloc[-1]:%Y-%m}"))
+            kpi_tile(t("liq_loan_outstanding", lang), t("liq_repaid", lang), theme,
+                     note=t("liq_last_instalment", lang).format(month=f"{repaid['period'].iloc[-1]:%Y-%m}") if not repaid.empty else None)
     with cols[3]:
-        kpi_tile(t("liq_vat_to_pay", lang), format_currency(unpaid_vat["balance"].sum()), theme)
-        if next_due is not None:
-            st.caption(f"{', '.join(unpaid_vat['term'])} · {t('liq_due', lang)} {next_due:%Y-%m-%d}")
+        kpi_tile(t("liq_vat_to_pay", lang), format_currency(unpaid_vat["balance"].sum()), theme,
+                 note=f"{', '.join(unpaid_vat['term'])} · {t('liq_due', lang)} {next_due:%Y-%m-%d}" if next_due is not None else None)
+    if not bank_view.empty and open_in_view:
+        st.caption(f"\\* {t('liq_bank_open_note', lang)}")
 
     st.write("")
     _section(t("liq_bank_title", lang))
@@ -144,9 +143,8 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     accruing = vat_m[vat_m["period"] > last_end]
     cols = st.columns(2)
     with cols[0]:
-        kpi_tile(t("liq_vat_to_pay", lang), format_currency(unpaid_vat["balance"].sum()), theme)
-        if next_due is not None:
-            st.caption(f"{', '.join(unpaid_vat['term'])} · {t('liq_due', lang)} {next_due:%Y-%m-%d}")
+        kpi_tile(t("liq_vat_to_pay", lang), format_currency(unpaid_vat["balance"].sum()), theme,
+                 note=f"{', '.join(unpaid_vat['term'])} · {t('liq_due', lang)} {next_due:%Y-%m-%d}" if next_due is not None else None)
     with cols[1]:
         kpi_tile(t("liq_vat_accruing", lang), format_currency((accruing["output_vat"] - accruing["input_vat"]).sum()), theme)
         st.caption(f"ℹ️ {t('liq_vat_accruing_note', lang)}")
