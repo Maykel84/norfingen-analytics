@@ -470,3 +470,20 @@ def test_cash_flow_reads_bank_account_1910_not_bank_transactions():
     sql = rq.call_args.args[0]
     assert "account_number = 1910" in sql and "bank_transactions" not in sql
     assert df["net"].iloc[0] == 40.0
+
+
+# --- headcount over time ------------------------------------------------------------
+
+def test_headcount_monthly_roster_vs_logging_hours_and_joiner_names():
+    emp = pd.DataFrame({
+        "employee_id": [1, 2, 3],
+        "employee": ["A One", "B Two", "C Three"],
+        "start_date": ["2026-01-02", "2026-01-02", "2026-03-02"],
+        "end_date": [None, None, None],
+    })
+    view = pd.DataFrame({"month": ["2026-01", "2026-02", "2026-03"], "active_employees": [1, 1, 2]})
+    with patch.object(metrics, "run_query", side_effect=[emp, view]):
+        df = metrics.get_headcount_monthly()
+    assert list(df["roster"]) == [2, 2, 3]
+    assert list(df["logging_hours"]) == [1, 1, 2]
+    assert df["joiners"].iloc[2] == "C Three" and df["joiners"].iloc[1] == ""

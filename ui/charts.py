@@ -359,6 +359,43 @@ def stacked_bars_colored(
     return fig
 
 
+def step_lines(
+    df: pd.DataFrame, x: str, series: list[tuple[str, str, str, str]], theme: str, joiners_col: str | None = None,
+    leavers_col: str | None = None, joined_label: str = "", left_label: str = "",
+    x_title: str | None = None, y_title: str | None = None,
+) -> go.Figure:
+    """Step lines (value holds until the next change): series = [(column, label, hex, dash)].
+    The first series gets a marker and a hover note in every month somebody joins or leaves."""
+    fig = go.Figure()
+    for i, (col, label, color, dash) in enumerate(series):
+        fig.add_scatter(
+            x=df[x], y=df[col], name=label, mode="lines", line=dict(color=color, width=2.5, dash=dash, shape="hv"),
+            hovertemplate=f"{label}: %{{y}}<extra></extra>",
+        )
+    if joiners_col or leavers_col:
+        col, label, color, _ = series[0]
+        events = df.copy()
+        notes = []
+        for _, r in events.iterrows():
+            parts = []
+            if joiners_col and r[joiners_col]:
+                parts.append(f"{joined_label}: {r[joiners_col]}")
+            if leavers_col and r[leavers_col]:
+                parts.append(f"{left_label}: {r[leavers_col]}")
+            notes.append("<br>".join(parts))
+        events["note"] = notes
+        events = events[events["note"] != ""]
+        fig.add_scatter(
+            x=events[x], y=events[col], mode="markers", showlegend=False, marker=dict(size=9, color=color, line=dict(color=CHROME[theme]["surface"], width=1.5)),
+            customdata=events["note"], hovertemplate=f"{label}: %{{y}}<br>%{{customdata}}<extra></extra>",
+        )
+    fig.update_layout(**_base_layout(theme, ""))
+    _style_axes(fig, theme, x_title=x_title, y_title=y_title)
+    fig.update_yaxes(rangemode="tozero", dtick=2)
+    _apply_granularity_ticks(fig, df, x, "month")
+    return fig
+
+
 # One distinct color per absence type (hour_entries.activity_type), the same in every
 # absence chart and legend. Six hues spread over hue AND lightness so no two merge, in
 # the active palette family; dark-mode values are light enough to stand off the card.

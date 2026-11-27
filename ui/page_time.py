@@ -162,6 +162,8 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             # ~1.5M to ~0.16M and the operating result spikes — a seasonal artefact, not performance.
             if cost_like and granularity == "month" and (pd.to_datetime(ts_df["period"]).dt.month == 6).any():
                 st.caption(f"ℹ️ {t('june_holiday_pay_note', lang)}")
+        if granularity == "month":
+            st.caption(f"ℹ️ {t('seasonality_note', lang)}")
         if granularity == "month" and open_months and any(m in cost_measures for m in selected_measures):
             if hide_open:
                 st.caption(f"ℹ️ {t('partial_month_not_plotted', lang).format(month=open_months[-1].strftime('%Y-%m'))}")

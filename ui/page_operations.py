@@ -6,7 +6,7 @@ import streamlit as st
 from semantic.metrics import (
     get_absence_by_department,
     get_absence_trend,
-    get_cash_flow_trend,
+    get_cash_flow_trend, get_headcount_monthly,
     get_cogs_by_supplier,
     get_cost_by_account,
     get_customer_lifecycle_events,
@@ -18,7 +18,9 @@ from semantic.metrics import (
     get_supplier_spend,
     get_utilization_trend,
 )
-from ui.charts import SEQUENTIAL, absence_colors, bar_breakdown, donut_chart, grouped_bar_compare, line_over_time
+from ui.charts import (
+    CATEGORICAL, SEQUENTIAL, absence_colors, bar_breakdown, donut_chart, grouped_bar_compare, line_over_time, step_lines,
+)
 from ui.components import format_currency, format_int
 from ui.i18n import t, t_account, t_department, t_employment_type
 
@@ -90,6 +92,22 @@ def _staffing_section(lang: str, theme: str) -> None:
     df = get_staffing_summary()
     if df.empty:
         return
+    # Headcount over time as a step line: it only changes when somebody is hired or leaves, and the
+    # markers (hover = names) show the hire dates. Two lines: the roster (employments) and the
+    # employees who actually log hours that month.
+    hc = get_headcount_monthly()
+    if not hc.empty:
+        st.markdown(f'<div class="section-label">{t("headcount_over_time", lang)}</div>', unsafe_allow_html=True)
+        pal = CATEGORICAL[theme]
+        fig_hc = step_lines(
+            hc, "period",
+            [("roster", t("hc_roster", lang), pal[0], "solid"), ("logging_hours", t("hc_logging_hours", lang), pal[2], "dot")],
+            theme, joiners_col="joiners", leavers_col="leavers", joined_label=t("hc_joined", lang),
+            left_label=t("hc_left", lang), x_title=t("month", lang), y_title=t("headcount", lang),
+        )
+        st.plotly_chart(fig_hc, use_container_width=True, config={"displayModeBar": False})
+        st.caption(f"ℹ️ {t('hc_note', lang)}")
+        st.markdown(f'<div class="section-label">{t("headcount_now", lang)}</div>', unsafe_allow_html=True)
     df = df.copy()
     df["department"] = df["department"].map(lambda d: t_department(d, lang))
     df["employment_type"] = df["employment_type"].map(lambda e: t_employment_type(e, lang))

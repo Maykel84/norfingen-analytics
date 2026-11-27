@@ -446,6 +446,46 @@ TRANSLATIONS = {
         "pl": "{month}: miesiąc w toku, koszty księgowane na koniec miesiąca — zysk i marża za ten miesiąc nie są ostateczne.",
         "no": "{month}: måneden pågår, kostnader bokføres ved månedsslutt — resultat og margin for den er ikke endelige.",
     },
+    "headcount_over_time": {
+        "en": 'Headcount over time',
+        "pl": 'Liczba pracowników w czasie',
+        "no": 'Antall ansatte over tid',
+    },
+    "headcount_now": {
+        "en": 'Current headcount by department',
+        "pl": 'Obecna liczba pracowników według działów',
+        "no": 'Nåværende antall ansatte per avdeling',
+    },
+    "hc_roster": {
+        "en": 'On the roster',
+        "pl": 'Na liście płac',
+        "no": 'På lønnslisten',
+    },
+    "hc_logging_hours": {
+        "en": 'Logging hours',
+        "pl": 'Rejestrują godziny',
+        "no": 'Registrerer timer',
+    },
+    "hc_joined": {
+        "en": 'Joined',
+        "pl": 'Dołączyli',
+        "no": 'Startet',
+    },
+    "hc_left": {
+        "en": 'Left',
+        "pl": 'Odeszli',
+        "no": 'Sluttet',
+    },
+    "hc_note": {
+        "en": 'The roster counts everyone whose employment has started; “Logging hours” counts those with time entries in the month. The two normally differ by one: the System Architect never logs hours (a documented exception); in the first months of 2019 the gap is wider while time tracking was starting up. Markers show the months with a hire; hover for names.',
+        "pl": 'Lista płac obejmuje wszystkich, których zatrudnienie się rozpoczęło; „Rejestrują godziny” to osoby z wpisami czasu w danym miesiącu. Zwykle różnią się o jeden: Architekt Systemowy nigdy nie rejestruje godzin (udokumentowany wyjątek); w pierwszych miesiącach 2019 r. różnica jest większa, bo rejestracja czasu dopiero ruszała. Znaczniki pokazują miesiące z zatrudnieniem; nazwiska w dymku.',
+        "no": 'Lønnslisten teller alle med påbegynt ansettelse; «Registrerer timer» teller de med timeføring i måneden. De to skiller seg vanligvis med én: systemarkitekten fører aldri timer (et dokumentert unntak); de første månedene i 2019 er forskjellen større mens timeføringen startet opp. Markørene viser måneder med nyansettelse; hold musepekeren over for navn.',
+    },
+    "seasonality_note": {
+        "en": 'July and December are structurally quieter (holidays), so a dip in those months is seasonality, not an anomaly.',
+        "pl": 'Lipiec i grudzień są strukturalnie spokojniejsze (urlopy), więc spadek w tych miesiącach to sezonowość, a nie anomalia.',
+        "no": 'Juli og desember er strukturelt roligere (ferie), så et fall i disse månedene er sesong, ikke et avvik.',
+    },
     "cash_ledger_note": {
         "en": "From the ledger (bank account 1910): includes income tax, pension and owner-loan payments, and the 2019 capital and loan injection. Inflow minus outflow adds up to the bank balance on the Liquidity page.",
         "pl": "Z księgi głównej (konto bankowe 1910): obejmuje płatności podatku dochodowego, emerytur i rat pożyczki właściciela oraz wpłatę kapitału i pożyczki z 2019 r. Wpływy minus wydatki dają saldo banku ze strony Płynność.",

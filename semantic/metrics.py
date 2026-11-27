@@ -690,6 +690,34 @@ def get_cogs_by_supplier(date_range: tuple | None = None) -> pd.DataFrame:
     return df
 
 
+def get_headcount_monthly() -> pd.DataFrame:
+    """Headcount at the end of every month, two ways:
+    - roster: employees whose employment has started (employments.start_date) and not ended;
+    - logging_hours: v_headcount_monthly.active_employees (employees with time entries that
+      month). They differ while someone is employed but never logs hours (the System Architect).
+    joiners / leavers: the names that start / end in that month, for the chart hover."""
+    emp = run_query(
+        "SELECT emp.employee_id, e.first_name || ' ' || e.last_name AS employee, emp.start_date, emp.end_date "
+        "FROM employments emp JOIN employees e ON e.id = emp.employee_id"
+    ).copy()
+    view = run_query("SELECT month, active_employees FROM v_headcount_monthly ORDER BY month")
+    emp["start_date"] = pd.to_datetime(emp["start_date"])
+    emp["end_date"] = pd.to_datetime(emp["end_date"])
+    rows = []
+    for month, logging in zip(view["month"], view["active_employees"]):
+        first = pd.Timestamp(month + "-01")
+        last = first + pd.offsets.MonthEnd(0)
+        started = emp[emp["start_date"] <= last]
+        on_roster = started[started["end_date"].isna() | (started["end_date"] > last)]
+        joined = emp[(emp["start_date"] >= first) & (emp["start_date"] <= last)]
+        left = emp[(emp["end_date"] >= first) & (emp["end_date"] <= last)]
+        rows.append({
+            "period": first, "roster": int(on_roster["employee_id"].nunique()), "logging_hours": int(logging),
+            "joiners": ", ".join(joined["employee"]), "leavers": ", ".join(left["employee"]),
+        })
+    return pd.DataFrame(rows)
+
+
 def get_staffing_summary() -> pd.DataFrame:
     """Current headcount by department and employment type (current =
     employments with no end_date)."""
