@@ -888,16 +888,22 @@ def get_payroll_by_employee() -> pd.DataFrame:
 
 
 def get_cash_flow_trend(granularity: str = "month", date_range: tuple | None = None) -> pd.DataFrame:
-    """Incoming vs. outgoing bank cash flow per period."""
-    period = _period_expr(granularity, "date")
-    where_sql, params = _date_range_clause(date_range, "date")
+    """Inflow and outflow of the bank account (1910) per period, from the LEDGER.
+
+    bank_transactions is not used: payments of income tax, pension and the owner-loan
+    instalments (and the 2019 capital and loan injection) are BANK vouchers without a row
+    there, so a chart built from it misses them. Summed over all periods, inflow - outflow
+    equals the bank balance on the Liquidity page. Columns: period, incoming, outgoing, net."""
+    period = _period_expr(granularity, "v.date")
+    where_sql, params = _date_range_clause(date_range, "v.date")
     sql = f"""
         SELECT
             {period} AS period,
-            SUM(CASE WHEN transaction_type = 'INCOMING' THEN amount ELSE 0 END) AS incoming,
-            SUM(CASE WHEN transaction_type = 'OUTGOING' THEN amount ELSE 0 END) AS outgoing
-        FROM bank_transactions
-        WHERE 1=1 {where_sql}
+            COALESCE(SUM(p.amount) FILTER (WHERE p.amount > 0), 0) AS incoming,
+            COALESCE(-SUM(p.amount) FILTER (WHERE p.amount < 0), 0) AS outgoing
+        FROM vouchers v
+        JOIN postings p ON p.voucher_id = v.id
+        WHERE p.account_number = 1910 {where_sql}
         GROUP BY {period}
         ORDER BY period
     """

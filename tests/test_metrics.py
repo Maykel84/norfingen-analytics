@@ -459,3 +459,14 @@ def test_fixed_assets_monthly_is_cumulative_and_net_of_depreciation():
     assert list(df["cost"]) == [1000.0, 1000.0, 1500.0]
     assert list(df["accumulated_depreciation"]) == [20.0, 20.0, 50.0]
     assert list(df["net"]) == [980.0, 980.0, 1450.0]
+
+
+# --- cash flow from the ledger ---------------------------------------------------
+
+def test_cash_flow_reads_bank_account_1910_not_bank_transactions():
+    fake = pd.DataFrame({"period": pd.to_datetime(["2026-01-01"]), "incoming": [100.0], "outgoing": [60.0]})
+    with patch.object(metrics, "run_query", return_value=fake) as rq:
+        df = metrics.get_cash_flow_trend(date_range=(dt.date(2026, 1, 1), dt.date(2026, 1, 31)))
+    sql = rq.call_args.args[0]
+    assert "account_number = 1910" in sql and "bank_transactions" not in sql
+    assert df["net"].iloc[0] == 40.0

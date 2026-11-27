@@ -277,6 +277,7 @@ def _cash_flow_section(lang: str, theme: str, date_range: tuple | None) -> None:
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     if open_months:
         st.caption(f"ℹ️ {t('cash_partial_note', lang).format(month=open_months[-1].strftime('%Y-%m'))}")
+    st.caption(f"ℹ️ {t('cash_ledger_note', lang)}")
 
 
 def _lifecycle_section(lang: str, theme: str, date_range: tuple | None) -> None:

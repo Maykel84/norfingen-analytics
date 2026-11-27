@@ -446,6 +446,11 @@ TRANSLATIONS = {
         "pl": "{month}: miesiąc w toku, koszty księgowane na koniec miesiąca — zysk i marża za ten miesiąc nie są ostateczne.",
         "no": "{month}: måneden pågår, kostnader bokføres ved månedsslutt — resultat og margin for den er ikke endelige.",
     },
+    "cash_ledger_note": {
+        "en": "From the ledger (bank account 1910): includes income tax, pension and owner-loan payments, and the 2019 capital and loan injection. Inflow minus outflow adds up to the bank balance on the Liquidity page.",
+        "pl": "Z księgi głównej (konto bankowe 1910): obejmuje płatności podatku dochodowego, emerytur i rat pożyczki właściciela oraz wpłatę kapitału i pożyczki z 2019 r. Wpływy minus wydatki dają saldo banku ze strony Płynność.",
+        "no": "Fra hovedboken (bankkonto 1910): inkluderer betaling av skatt, pensjon og avdrag på eierlånet, samt kapital- og lånetilførselen i 2019. Innbetalinger minus utbetalinger summerer til banksaldoen på Likviditet-siden.",
+    },
     "cash_partial_note": {
         "en": "{month}: month in progress, not final — payroll, supplier and VAT payments are booked later in the month.",
         "pl": "{month}: miesiąc w toku, dane nie są ostateczne — wynagrodzenia, płatności dla dostawców i VAT są księgowane później w miesiącu.",
