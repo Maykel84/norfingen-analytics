@@ -440,3 +440,22 @@ def test_multi_year_trend_drops_open_month_and_sums_extra_series():
     assert df.loc["2026-01-01", "revenue"] == 100.0
     assert df.loc["2025-01-01", "net_result"] == 14.0
     assert df.loc["2025-01-01", "cost"] == 180.0  # includes depreciation (inside operating_cost)
+
+
+# --- balance sheet -------------------------------------------------------------
+
+def test_balance_check_max_is_zero_when_balanced_and_flags_a_gap():
+    ok = pd.DataFrame({"balance_check": [0.0, -0.0, 0.0]})
+    bad = pd.DataFrame({"balance_check": [0.0, -0.37, 0.12]})
+    assert metrics.balance_check_max(ok) == 0.0
+    assert metrics.balance_check_max(bad) == pytest.approx(0.37)
+
+
+def test_fixed_assets_monthly_is_cumulative_and_net_of_depreciation():
+    ledger = pd.DataFrame({"month": ["2026-01", "2026-03"], "cost_m": [1000.0, 500.0], "dep_m": [-20.0, -30.0]})
+    months = pd.DataFrame({"month": ["2026-01", "2026-02", "2026-03"]})
+    with patch.object(metrics, "run_query", side_effect=[ledger, months]):
+        df = metrics.get_fixed_assets_monthly()
+    assert list(df["cost"]) == [1000.0, 1000.0, 1500.0]
+    assert list(df["accumulated_depreciation"]) == [20.0, 20.0, 50.0]
+    assert list(df["net"]) == [980.0, 980.0, 1450.0]

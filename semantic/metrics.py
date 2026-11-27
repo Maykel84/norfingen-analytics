@@ -1348,3 +1348,51 @@ def get_cost_by_category_monthly() -> pd.DataFrame:
     cats = ["cogs_passthrough", "equipment", "labor", "operating"]
     df[cats] = df[cats].astype(float).fillna(0.0)
     return df
+
+
+# --- balance sheet (v_balance_monthly) ----------------------------------------
+
+BALANCE_ASSET_SERIES = ("fixed_assets_net", "receivables", "cash", "other_assets")
+BALANCE_LIABILITY_SERIES = ("long_term_debt", "trade_payables", "tax_payable", "vat_net", "payroll_and_pension", "other_liabilities")
+BALANCE_EQUITY_SERIES = ("share_capital", "retained_earnings", "result_ytd")
+
+
+def get_balance_monthly() -> pd.DataFrame:
+    """The balance sheet at the END of every month, cumulative since the first
+    voucher (v_balance_monthly). `period` is the 1st of the month. `is_partial`
+    marks the month in progress: its payroll and COGS are not booked yet, so its
+    equity and cash are not final. retained_earnings = results of EARLIER calendar
+    years (nothing is closed in the ledger); result_ytd = current year to date."""
+    df = run_query("SELECT * FROM v_balance_monthly ORDER BY month").copy()
+    df["period"] = pd.to_datetime(df["month"] + "-01")
+    return df
+
+
+def get_fixed_assets_monthly() -> pd.DataFrame:
+    """Fixed assets at month end from the ledger: acquisition cost (account 1200),
+    accumulated depreciation (1209, shown as a positive amount) and the net book
+    value. Cumulative since the first voucher, so net equals v_balance_monthly.fixed_assets_net."""
+    df = run_query(
+        """
+        SELECT TO_CHAR(v.date, 'YYYY-MM') AS month,
+               COALESCE(SUM(p.amount) FILTER (WHERE p.account_number = 1200), 0) AS cost_m,
+               COALESCE(SUM(p.amount) FILTER (WHERE p.account_number = 1209), 0) AS dep_m
+        FROM postings p JOIN vouchers v ON v.id = p.voucher_id
+        WHERE p.account_number IN (1200, 1209)
+        GROUP BY 1 ORDER BY 1
+        """
+    ).copy()
+    months = get_balance_monthly()["month"]
+    df = df.set_index("month").reindex(months).fillna(0.0)
+    out = pd.DataFrame({
+        "period": pd.to_datetime(months.values + "-01"),
+        "cost": df["cost_m"].cumsum().values,
+        "accumulated_depreciation": (-df["dep_m"]).cumsum().values,
+    })
+    out["net"] = out["cost"] - out["accumulated_depreciation"]
+    return out
+
+
+def balance_check_max(balance: pd.DataFrame) -> float:
+    """max |assets - liabilities - equity| over all months (0.00 = balanced)."""
+    return float(balance["balance_check"].abs().max()) if not balance.empty else 0.0

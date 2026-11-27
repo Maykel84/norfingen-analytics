@@ -2,7 +2,7 @@
 
 LANGUAGES = {"en": "English", "pl": "Polski", "no": "Norsk"}
 
-NAV_ITEMS = ["today", "overview", "time", "clients", "receivables", "liquidity", "profitability", "operations"]
+NAV_ITEMS = ["today", "overview", "time", "clients", "receivables", "liquidity", "balance", "profitability", "operations"]
 
 TRANSLATIONS = {
     "app_title": {
@@ -60,7 +60,158 @@ TRANSLATIONS = {
     "nav_operations": {"en": "Operations", "pl": "Operacje", "no": "Drift"},
     "nav_receivables": {"en": "Receivables", "pl": "Należności", "no": "Fordringer"},
     "nav_liquidity": {"en": "Liquidity", "pl": "Płynność", "no": "Likviditet"},
+    "nav_balance": {"en": "Balance", "pl": "Bilans", "no": "Balanse"},
     "nav_profitability": {"en": "Profitability", "pl": "Rentowność", "no": "Lønnsomhet"},
+    "bs_total_assets": {
+        "en": 'Total assets',
+        "pl": 'Suma aktywów',
+        "no": 'Sum eiendeler',
+    },
+    "bs_total_equity": {
+        "en": 'Total equity',
+        "pl": 'Kapitał własny',
+        "no": 'Sum egenkapital',
+    },
+    "bs_equity_ratio": {
+        "en": 'Equity ratio',
+        "pl": 'Wskaźnik kapitału własnego',
+        "no": 'Egenkapitalandel',
+    },
+    "bs_net_debt": {
+        "en": 'Net debt',
+        "pl": 'Dług netto',
+        "no": 'Netto gjeld',
+    },
+    "bs_net_debt_note": {
+        "en": 'Owner loan minus cash; negative = more cash than debt',
+        "pl": 'Pożyczka właściciela minus gotówka; wartość ujemna = więcej gotówki niż długu',
+        "no": 'Eierlån minus kontanter; negativ = mer kontanter enn gjeld',
+    },
+    "bs_as_of": {
+        "en": 'Balance at the end of {month} (latest full month)',
+        "pl": 'Stan na koniec {month} (ostatni pełny miesiąc)',
+        "no": 'Balanse ved utgangen av {month} (siste hele måned)',
+    },
+    "bs_assets_chart": {
+        "en": 'Assets by type',
+        "pl": 'Aktywa według rodzaju',
+        "no": 'Eiendeler etter type',
+    },
+    "bs_liab_equity_chart": {
+        "en": 'Liabilities and equity',
+        "pl": 'Zobowiązania i kapitał własny',
+        "no": 'Gjeld og egenkapital',
+    },
+    "bs_fixed_assets_chart": {
+        "en": 'Fixed assets: cost and accumulated depreciation',
+        "pl": 'Środki trwałe: wartość początkowa i umorzenie',
+        "no": 'Anleggsmidler: kostpris og akkumulerte avskrivninger',
+    },
+    "bs_fixed_cost": {
+        "en": 'Cost (1200)',
+        "pl": 'Wartość początkowa (1200)',
+        "no": 'Kostpris (1200)',
+    },
+    "bs_fixed_acc_dep": {
+        "en": 'Accumulated depreciation (1209)',
+        "pl": 'Umorzenie (1209)',
+        "no": 'Akkumulerte avskrivninger (1209)',
+    },
+    "bs_fixed_net": {
+        "en": 'Net book value',
+        "pl": 'Wartość netto',
+        "no": 'Bokført verdi',
+    },
+    "bs_fixed_assets_net": {
+        "en": 'Fixed assets (net)',
+        "pl": 'Środki trwałe (netto)',
+        "no": 'Anleggsmidler (netto)',
+    },
+    "bs_receivables": {
+        "en": 'Receivables',
+        "pl": 'Należności',
+        "no": 'Kundefordringer',
+    },
+    "bs_cash": {
+        "en": 'Cash',
+        "pl": 'Gotówka',
+        "no": 'Kontanter',
+    },
+    "bs_other_assets": {
+        "en": 'Other assets',
+        "pl": 'Pozostałe aktywa',
+        "no": 'Andre eiendeler',
+    },
+    "bs_long_term_debt": {
+        "en": 'Owner loan',
+        "pl": 'Pożyczka właściciela',
+        "no": 'Eierlån',
+    },
+    "bs_trade_payables": {
+        "en": 'Trade payables',
+        "pl": 'Zobowiązania handlowe',
+        "no": 'Leverandørgjeld',
+    },
+    "bs_tax_payable": {
+        "en": 'Income tax payable',
+        "pl": 'Podatek dochodowy do zapłaty',
+        "no": 'Betalbar skatt',
+    },
+    "bs_vat_net": {
+        "en": 'VAT (net)',
+        "pl": 'VAT (netto)',
+        "no": 'MVA (netto)',
+    },
+    "bs_payroll_and_pension": {
+        "en": 'Payroll and pension',
+        "pl": 'Wynagrodzenia i emerytury',
+        "no": 'Lønn og pensjon',
+    },
+    "bs_other_liabilities": {
+        "en": 'Other liabilities',
+        "pl": 'Pozostałe zobowiązania',
+        "no": 'Annen gjeld',
+    },
+    "bs_share_capital": {
+        "en": 'Share capital',
+        "pl": 'Kapitał zakładowy',
+        "no": 'Aksjekapital',
+    },
+    "bs_retained_earnings": {
+        "en": 'Retained earnings',
+        "pl": 'Zyski zatrzymane',
+        "no": 'Opptjent egenkapital',
+    },
+    "bs_result_ytd": {
+        "en": 'Result year to date',
+        "pl": 'Wynik od początku roku',
+        "no": 'Resultat hittil i år',
+    },
+    "bs_check_ok": {
+        "en": 'Balance check: max |assets − liabilities − equity| = {value} kr over {n} months — balanced.',
+        "pl": 'Kontrola bilansu: maks. |aktywa − zobowiązania − kapitał| = {value} kr w {n} miesiącach — bilans zgodny.',
+        "no": 'Balansekontroll: maks. |eiendeler − gjeld − egenkapital| = {value} kr over {n} måneder — i balanse.',
+    },
+    "bs_check_bad": {
+        "en": 'Balance check FAILED: max |assets − liabilities − equity| = {value} kr over {n} months.',
+        "pl": 'Kontrola bilansu NIEUDANA: maks. |aktywa − zobowiązania − kapitał| = {value} kr w {n} miesiącach.',
+        "no": 'Balansekontroll FEILET: maks. |eiendeler − gjeld − egenkapital| = {value} kr over {n} måneder.',
+    },
+    "bs_open_note": {
+        "en": 'The month in progress is shaded: its payroll and COGS are booked at month end, so its equity and cash are not final.',
+        "pl": 'Miesiąc w toku jest zacieniony: wynagrodzenia i COGS są księgowane na koniec miesiąca, więc jego kapitał i gotówka nie są ostateczne.',
+        "no": 'Måneden som pågår er skravert: lønn og COGS bokføres ved månedsslutt, så egenkapital og kontanter er ikke endelige.',
+    },
+    "bs_footnote": {
+        "en": 'Equity is negative at the start because of the start-up loss, financed by the owner loan. Retained earnings are the results of earlier calendar years (the ledger is not closed); the current year sits in “Result year to date”. Balances are cumulative since the first voucher; the year selector only slices the view.',
+        "pl": 'Kapitał własny jest ujemny na początku z powodu straty z okresu rozruchu, sfinansowanej pożyczką właściciela. Zyski zatrzymane to wyniki poprzednich lat kalendarzowych (księgi nie są zamykane); bieżący rok jest w pozycji „Wynik od początku roku”. Salda są narastające od pierwszego dokumentu; wybór roku tylko zawęża widok.',
+        "no": 'Egenkapitalen er negativ i starten på grunn av oppstartstapet, finansiert av eierlånet. Opptjent egenkapital er resultatene fra tidligere kalenderår (regnskapet er ikke avsluttet); inneværende år ligger i «Resultat hittil i år». Saldoene er kumulative fra første bilag; årsvelgeren avgrenser bare visningen.',
+    },
+    "bs_no_full_month": {
+        "en": 'No full month in the selected year yet.',
+        "pl": 'W wybranym roku nie ma jeszcze pełnego miesiąca.',
+        "no": 'Ingen hel måned i valgt år ennå.',
+    },
     # Profitability page
     "prf_customers": {"en": "Customer profitability", "pl": "Rentowność klientów", "no": "Kundelønnsomhet"},
     "prf_method_note": {

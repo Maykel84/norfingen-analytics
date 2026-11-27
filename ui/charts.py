@@ -323,6 +323,42 @@ def stacked_bar_over_time(
     return fig
 
 
+def ramp_colors(ramp: list[str], n: int) -> list[str]:
+    """n evenly spread shades of a 7-step sequential ramp (skipping the palest, which
+    vanishes on the card), so the series of one stack stay in one colour family."""
+    if n <= 1:
+        return [ramp[4]]
+    return [ramp[round(1 + i * 5 / (n - 1))] for i in range(n)]
+
+
+def stacked_bars_colored(
+    df: pd.DataFrame, x: str, series: list[tuple[str, str, str]], theme: str, partial_periods: list | None = None,
+    partial_label: str | None = None, x_title: str | None = None, y_title: str | None = None,
+) -> go.Figure:
+    """Monthly stacked bars with an explicit colour per series: series = [(column, label,
+    hex)]. Negative values stack below zero. The month in progress gets a grey band."""
+    fig = go.Figure()
+    for col, label, color in series:
+        fig.add_bar(
+            x=df[x], y=df[col], name=label, marker_color=color, marker_line_width=0,
+            hovertemplate=f"{label}: %{{y:,.0f}} kr<extra></extra>",
+        )
+    fig.update_layout(**_base_layout(theme, ""), barmode="relative", bargap=0.15)
+    _style_axes(fig, theme, x_title=x_title, y_title=y_title)
+    _apply_granularity_ticks(fig, df, x, "month")
+    present = set(pd.to_datetime(df[x]).dt.normalize())
+    for p in partial_periods or []:
+        start = pd.Timestamp(p)
+        if start in present:  # a bar is centred on the 1st, so the band is too
+            fig.add_vrect(
+                x0=start - pd.Timedelta(days=16), x1=start + pd.Timedelta(days=16),
+                fillcolor=CHROME[theme]["muted"], opacity=0.18, line_width=0, layer="below",
+                annotation_text=partial_label or "", annotation_position="top left",
+                annotation_font=dict(size=11, color=CHROME[theme]["muted"]),
+            )
+    return fig
+
+
 # One distinct color per absence type (hour_entries.activity_type), the same in every
 # absence chart and legend. Six hues spread over hue AND lightness so no two merge, in
 # the active palette family; dark-mode values are light enough to stand off the card.

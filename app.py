@@ -2,7 +2,7 @@ import streamlit as st
 
 from data.db import get_last_refresh_time
 from semantic.metrics import get_available_years
-from ui import page_clients, page_liquidity, page_operations, page_overview, page_profitability, page_receivables, page_time, page_today
+from ui import page_balance, page_clients, page_liquidity, page_operations, page_overview, page_profitability, page_receivables, page_time, page_today
 from ui.components import nav_bar
 from ui.i18n import t
 from ui.theme import inject_global_css
@@ -64,6 +64,8 @@ elif st.session_state.active_page == "receivables":
     page_receivables.render(lang, theme, selected_year)
 elif st.session_state.active_page == "liquidity":
     page_liquidity.render(lang, theme, selected_year)
+elif st.session_state.active_page == "balance":
+    page_balance.render(lang, theme, selected_year)
 elif st.session_state.active_page == "profitability":
     page_profitability.render(lang, theme, selected_year)
 elif st.session_state.active_page == "operations":
