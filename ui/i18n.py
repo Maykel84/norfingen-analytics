@@ -486,6 +486,7 @@ TRANSLATIONS = {
         "pl": 'Lipiec i grudzień są strukturalnie spokojniejsze (urlopy), więc spadek w tych miesiącach to sezonowość, a nie anomalia.',
         "no": 'Juli og desember er strukturelt roligere (ferie), så et fall i disse månedene er sesong, ikke et avvik.',
     },
+    "prf_contribution_margin": {"en": "Contribution margin %", "pl": "Marża wkładu %", "no": "Bidragsmargin %"},
     "cash_ledger_note": {
         "en": "From the ledger (bank account 1910): includes income tax, pension and owner-loan payments, and the 2019 capital and loan injection. Inflow minus outflow adds up to the bank balance on the Liquidity page.",
         "pl": "Z księgi głównej (konto bankowe 1910): obejmuje płatności podatku dochodowego, emerytur i rat pożyczki właściciela oraz wpłatę kapitału i pożyczki z 2019 r. Wpływy minus wydatki dają saldo banku ze strony Płynność.",

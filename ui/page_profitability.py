@@ -28,7 +28,7 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     else:
         rev, cogs, labor = customers["revenue"].sum(), customers["cogs_alloc"].sum(), customers["labor_cost"].sum()
         contribution = rev - cogs - labor
-        cols = st.columns(4)
+        cols = st.columns(5)
         with cols[0]:
             kpi_tile(t("revenue", lang), format_currency(rev), theme)
         with cols[1]:
@@ -37,7 +37,8 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             kpi_tile(t("prf_labor", lang), format_currency(labor), theme)
         with cols[3]:
             kpi_tile(t("prf_contribution", lang), format_currency(contribution), theme)
-            st.caption(format_pct(contribution / rev * 100 if rev else 0))
+        with cols[4]:
+            kpi_tile(t("prf_contribution_margin", lang), format_pct(contribution / rev * 100 if rev else 0), theme)
         st.caption(f"ℹ️ {t('prf_method_note', lang)}")
 
         top = customers.head(15).iloc[::-1]
