@@ -9,9 +9,34 @@ from semantic.metrics import (
 from ui.charts import coverage_map, line_over_time
 from ui.components import format_currency, format_pct, kpi_tile, partial_month_caption
 from ui.i18n import t
+from ui.theme import tokens
 
 
 _EXTRA_SERIES = ("ebitda", "depreciation", "financial_result", "tax", "net_result")
+
+
+def _ratio_strip(totals: dict, lang: str, theme: str) -> None:
+    """EBIT margin, net margin and client count in one card, three columns with thin dividers."""
+    tk = tokens(theme)
+    items = (
+        (t("margin_pct", lang), format_pct(totals["margin_pct"])),
+        (t("net_margin_pct", lang), format_pct(totals["net_margin_pct"])),
+        (t("client_count", lang), f"{totals['company_count']:,}"),
+    )
+    label_css = (
+        f"font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:{tk['text_muted']};"
+    )
+    cells = "".join(
+        f'<div style="flex:1;padding:0 20px;{"border-left:1px solid " + tk["divider"] + ";" if i else ""}">'
+        f'<div style="{label_css}">{label}</div>'
+        f'<div style="font-size:22px;font-weight:600;color:{tk["text_primary"]};">{value}</div></div>'
+        for i, (label, value) in enumerate(items)
+    )
+    st.markdown(
+        f'<div style="background:{tk["surface"]};border-radius:16px;box-shadow:0 2px 10px {tk["shadow"]};'
+        f'display:flex;padding:14px 0;">{cells}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render(lang: str, theme: str, selected_year: int | None) -> None:
@@ -28,23 +53,17 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
     with st.spinner(t("loading_data", lang)):
         totals = get_yearly_totals(selected_year)
 
-        cols = st.columns(5)
-        with cols[0]:
-            kpi_tile(t("revenue", lang), format_currency(totals["revenue"]), theme)
-        with cols[1]:
-            kpi_tile(t("cost", lang), format_currency(totals["cost"]), theme)
-        with cols[2]:
-            kpi_tile(t("profit", lang), format_currency(totals["profit"]), theme)
-        with cols[3]:
-            kpi_tile(t("margin_pct", lang), format_pct(totals["margin_pct"]), theme)
-        with cols[4]:
-            kpi_tile(t("client_count", lang), f"{totals['company_count']:,}", theme)
-        # Second row: the result after financial items and income tax, next to its margin.
-        net_cols = st.columns(5)
-        with net_cols[0]:
-            kpi_tile(t("net_result", lang), format_currency(totals["net_result"]), theme)
-        with net_cols[1]:
-            kpi_tile(t("net_margin_pct", lang), format_pct(totals["net_margin_pct"]), theme)
+        # Row 1: the money, from revenue down to the net result. Row 2: the ratios and the client count.
+        # Both rows use the same four columns so the tiles line up; a gap keeps the rows apart.
+        amounts = st.columns(4)
+        for col, (label, value) in zip(amounts, [
+            (t("revenue", lang), totals["revenue"]), (t("cost", lang), totals["cost"]),
+            (t("profit", lang), totals["profit"]), (t("net_result", lang), totals["net_result"]),
+        ]):
+            with col:
+                kpi_tile(label, format_currency(value), theme)
+        st.write("")
+        _ratio_strip(totals, lang, theme)
         partial_month_caption(get_partial_months_in_range(date_range), lang, excluded=True)
         # Say what the two result lines are: EBIT (operating result) and the net result after
         # financial items and income tax — both from v_pl_monthly, full months only.
