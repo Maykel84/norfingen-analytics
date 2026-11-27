@@ -347,7 +347,7 @@ def test_financial_expense_uses_8xxx_accounts_and_date_range():
     raw = pd.DataFrame({"expense": ["794791.61"]})
     with patch.object(metrics, "run_query", return_value=raw) as rq:
         assert metrics.get_financial_expense((dt.date(2019, 1, 1), dt.date(2025, 12, 31))) == pytest.approx(794791.61)
-    assert "BETWEEN 8000 AND 8999" in rq.call_args.args[0]
+    assert "BETWEEN 8000 AND 8299" in rq.call_args.args[0]
 
 
 # --- Operations review fixes (round 2, point 3) ----------------------------------
@@ -396,3 +396,47 @@ def test_every_absence_type_has_its_own_color_in_every_theme_and_palette():
         for theme, colors in themes.items():
             assert set(colors) == set(metrics.ABSENCE_ACTIVITY_TYPES), (family, theme)
             assert len(set(colors.values())) == len(colors), f"duplicate colour in {family}/{theme}"
+
+
+# --- P&L from v_pl_monthly (EBIT vs net result) ------------------------------
+
+def _fake_pl_view():
+    return pd.DataFrame({
+        "month": ["2025-11", "2025-12", "2026-01", "2026-02"],
+        "revenue": [100.0, 100.0, 100.0, 100.0],
+        "labor_cost": [40.0, 40.0, 40.0, 0.0],
+        "operating_cost": [20.0, 20.0, 20.0, 5.0],
+        "cogs": [30.0, 30.0, 30.0, 0.0],
+        "operating_result": [10.0, 10.0, 10.0, 95.0],
+        "is_partial": [False, False, False, True],
+        "depreciation": [2.0, 2.0, 2.0, 0.0],
+        "ebitda": [12.0, 12.0, 12.0, 95.0],
+        "financial_result": [-1.0, -1.0, 0.0, 0.0],
+        "tax": [0.0, 4.0, 0.0, 0.0],
+        "net_result": [9.0, 5.0, 10.0, 95.0],
+    })
+
+
+def test_yearly_totals_use_full_months_and_split_ebit_from_net_result():
+    with patch.object(metrics, "run_query", side_effect=[_fake_pl_view(), pd.DataFrame({"n": [7]})]):
+        t = metrics.get_yearly_totals(2025)
+    assert t["profit"] == 20.0 and t["net_result"] == 14.0
+    assert t["tax"] == 4.0 and t["financial_result"] == -2.0
+    assert t["margin_pct"] == 10.0 and t["company_count"] == 7
+    assert t["tax_pending_year"] is None
+
+
+def test_yearly_totals_exclude_open_month_and_flag_tax_not_booked_yet():
+    with patch.object(metrics, "run_query", side_effect=[_fake_pl_view(), pd.DataFrame({"n": [3]})]):
+        t = metrics.get_yearly_totals(2026)
+    assert t["revenue"] == 100.0 and t["profit"] == 10.0  # February (open) left out
+    assert t["tax_pending_year"] == 2026
+
+
+def test_multi_year_trend_drops_open_month_and_sums_extra_series():
+    with patch.object(metrics, "run_query", return_value=_fake_pl_view()):
+        df = metrics.get_multi_year_trend().set_index("period")
+    assert list(df.index.year) == [2025, 2026]
+    assert df.loc["2026-01-01", "revenue"] == 100.0
+    assert df.loc["2025-01-01", "net_result"] == 14.0
+    assert df.loc["2025-01-01", "cost"] == 180.0  # includes depreciation (inside operating_cost)

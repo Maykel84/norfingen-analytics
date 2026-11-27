@@ -4,12 +4,14 @@ import pandas as pd
 import streamlit as st
 
 from semantic.metrics import (
-    exclude_partial_months, get_city_density, get_financial_expense, get_monthly_trend_for_year, get_multi_year_trend,
-    get_partial_months_in_range, get_yearly_totals,
+    get_city_density, get_monthly_trend_for_year, get_multi_year_trend, get_partial_months_in_range, get_yearly_totals,
 )
 from ui.charts import coverage_map, line_over_time
 from ui.components import format_currency, format_pct, kpi_tile, partial_month_caption
 from ui.i18n import t
+
+
+_EXTRA_SERIES = ("ebitda", "depreciation", "financial_result", "tax", "net_result")
 
 
 def render(lang: str, theme: str, selected_year: int | None) -> None:
@@ -37,22 +39,34 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
             kpi_tile(t("margin_pct", lang), format_pct(totals["margin_pct"]), theme)
         with cols[4]:
             kpi_tile(t("client_count", lang), f"{totals['company_count']:,}", theme)
+        # Second row: the result after financial items and income tax, next to its margin.
+        net_cols = st.columns(5)
+        with net_cols[0]:
+            kpi_tile(t("net_result", lang), format_currency(totals["net_result"]), theme)
+        with net_cols[1]:
+            kpi_tile(t("net_margin_pct", lang), format_pct(totals["net_margin_pct"]), theme)
         partial_month_caption(get_partial_months_in_range(date_range), lang, excluded=True)
-        # Say what "Profit" is: operating result, before financial items. Financial
-        # expense (loan interest, 8xxx) comes from the ledger for the same full-month
-        # range as the KPIs — never hard-coded — together with the result after it.
+        # Say what the two result lines are: EBIT (operating result) and the net result after
+        # financial items and income tax — both from v_pl_monthly, full months only.
         st.caption(t("profit_definition", lang))
-        fin = get_financial_expense(exclude_partial_months(date_range))
-        if fin:
-            st.caption(t("fin_items_note", lang).format(
-                fin=format_currency(fin), after=format_currency(totals["profit"] - fin),
-            ))
+        st.caption(t("fin_items_note", lang).format(
+            fin=format_currency(totals["financial_result"]), tax=format_currency(totals["tax"]),
+        ))
+        if totals["tax_pending_year"]:
+            st.caption(t("tax_pending_note", lang).format(year=totals["tax_pending_year"]))
 
         st.write("")
         trend_col, map_col = st.columns([3, 2])
 
         with trend_col:
             st.markdown(f'<div class="section-label">{t("history", lang)}</div>', unsafe_allow_html=True)
+            # The key carries the language so the tags are re-labelled on a language switch
+            # (a plain key keeps the old-language labels); the choice is carried over by hand.
+            extra = st.multiselect(
+                t("extra_series", lang), options=list(_EXTRA_SERIES), key=f"overview_extra_series_{lang}",
+                default=st.session_state.get("overview_extra_sel", []), format_func=lambda k: t(k, lang),
+            )
+            st.session_state["overview_extra_sel"] = extra
             if selected_year is not None:
                 history_df = get_monthly_trend_for_year(selected_year)
                 chart_granularity = "month"
@@ -61,7 +75,7 @@ def render(lang: str, theme: str, selected_year: int | None) -> None:
                 chart_granularity = "year"
             if not history_df.empty:
                 melted = history_df.sort_values("period").melt(
-                    id_vars=["period"], value_vars=["revenue", "cost", "profit"],
+                    id_vars=["period"], value_vars=["revenue", "cost", "profit", *extra],
                     var_name=t("measure_label", lang), value_name="value",
                 )
                 measure_col = t("measure_label", lang)

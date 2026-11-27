@@ -422,14 +422,15 @@ def exclude_partial_months(date_range: tuple | None) -> tuple | None:
 
 
 def get_financial_expense(date_range: tuple | None = None) -> float:
-    """Net financial expense (accounts 8000-8999, debit-positive: interest on the
-    owner loan is 8150) booked in the period. It is NOT part of the dashboard's
-    profit (operating result = revenue - accounts 4000-7999)."""
+    """Net financial expense (accounts 8000-8299, debit-positive: interest on the
+    owner loan is 8150) booked in the period. Income tax (8300) is excluded; both
+    are outside EBIT (revenue - accounts 4000-7999). The Overview now reads the
+    same figure from v_pl_monthly.financial_result."""
     where_sql, params = _date_range_clause(date_range, "v.date")
     sql = f"""
         SELECT COALESCE(SUM(p.amount), 0) AS expense
         FROM postings p JOIN vouchers v ON v.id = p.voucher_id
-        WHERE p.account_number BETWEEN 8000 AND 8999 {where_sql}
+        WHERE p.account_number BETWEEN 8000 AND 8299 {where_sql}
     """
     return float(run_query(sql, params)["expense"].iloc[0])
 
@@ -451,51 +452,86 @@ def snap_to_full_months(date_range: tuple) -> tuple | None:
     return (start, end) if start <= end else None
 
 
+_PL_EXTRA_SERIES = ("ebitda", "depreciation", "financial_result", "tax", "net_result")
+
+
+def get_pl_monthly() -> pd.DataFrame:
+    """The monthly P&L straight from v_pl_monthly — the single definition the
+    API and the exports use. One row per month; `period` is the 1st of the month.
+
+    profit = operating_result = EBIT (depreciation, account 60xx, sits INSIDE
+    operating_cost, so cost = labor + operating + cogs already includes it).
+    net_result = EBIT + financial_result - tax. Sign: financial_result income
+    positive / cost negative; tax is a positive amount (a cost)."""
+    df = run_query(
+        "SELECT month, revenue, labor_cost, operating_cost, cogs, operating_result, is_partial, "
+        "depreciation, ebitda, financial_result, tax, net_result FROM v_pl_monthly ORDER BY month"
+    ).copy()
+    df["period"] = pd.to_datetime(df["month"] + "-01")
+    df["cost"] = df["labor_cost"] + df["operating_cost"] + df["cogs"]
+    df["profit"] = df["operating_result"]
+    return df
+
+
+def _sum_pl(rows: pd.DataFrame) -> dict:
+    """Totals of a slice of monthly rows, with the EBIT and net margins."""
+    out = {k: float(rows[k].sum()) for k in ("revenue", "cost", "profit", *_PL_EXTRA_SERIES)}
+    out["margin_pct"] = out["profit"] / out["revenue"] * 100 if out["revenue"] else 0.0
+    out["net_margin_pct"] = out["net_result"] / out["revenue"] * 100 if out["revenue"] else 0.0
+    return out
+
+
 def get_yearly_totals(year: int | None) -> dict:
     """Headline KPIs for the Overview landing page, optionally scoped to one
-    year. Full months only (see exclude_partial_months): the open month has
-    revenue but not yet its payroll/COGS, which would inflate profit/margin."""
-    date_range = None
-    if year is not None:
-        date_range = (dt.date(year, 1, 1), dt.date(year, 12, 31))
-    date_range = exclude_partial_months(date_range)
-    totals = get_measure("profit", group_by=[], date_range=date_range, granularity=None)
-    company_count_sql = """
-        SELECT COUNT(DISTINCT o.customer_id) AS n
-        FROM orders o
-        WHERE 1=1 {date_filter}
-    """
-    if date_range:
+    year, from v_pl_monthly. Full months only (`WHERE NOT is_partial`): the open
+    month has revenue but not yet its payroll/COGS, which would inflate profit.
+
+    `profit` is EBIT; `net_result` is after financial items and income tax.
+    `tax_pending_year` is the (latest) year in scope whose income tax is not
+    booked yet — it is booked on 31 December, so that year's net result is
+    before tax."""
+    all_months = get_pl_monthly()
+    pl = all_months[all_months["period"].dt.year == year] if year is not None else all_months
+    rows = pl[~pl["is_partial"]]
+    if rows.empty:  # the whole scope is the open month: keep it rather than show zeros
+        rows = pl
+    totals = _sum_pl(rows) if not rows.empty else {k: 0.0 for k in ("revenue", "cost", "profit", "margin_pct", "net_margin_pct", *_PL_EXTRA_SERIES)}
+    company_count = 0
+    if not rows.empty:
+        d1, d2 = rows["period"].min().date(), _month_end(rows["period"].max().date())
         df = run_query(
-            company_count_sql.format(date_filter="AND o.order_date BETWEEN :d1 AND :d2"),
-            {"d1": date_range[0], "d2": date_range[1]},
+            "SELECT COUNT(DISTINCT o.customer_id) AS n FROM orders o WHERE o.order_date BETWEEN :d1 AND :d2",
+            {"d1": d1, "d2": d2},
         )
+        company_count = int(df["n"].iloc[0]) if not df.empty else 0
+        last_year = int(rows["period"].dt.year.max())
+        last_rows = all_months[all_months["period"].dt.year == last_year]
+        totals["tax_pending_year"] = last_year if last_rows["tax"].sum() == 0 and last_year > 2021 else None
     else:
-        df = run_query(company_count_sql.format(date_filter=""))
-    company_count = int(df["n"].iloc[0]) if not df.empty else 0
-    return {
-        "revenue": float(totals["revenue"].iloc[0]) if not totals.empty else 0.0,
-        "cost": float(totals["cost"].iloc[0]) if not totals.empty else 0.0,
-        "profit": float(totals["profit"].iloc[0]) if not totals.empty else 0.0,
-        "margin_pct": float(totals["margin_pct"].iloc[0]) if not totals.empty else 0.0,
-        "company_count": company_count,
-    }
+        totals["tax_pending_year"] = None
+    totals["company_count"] = company_count
+    return totals
 
 
 def get_multi_year_trend() -> pd.DataFrame:
-    """Full-history revenue/cost/profit by year, for the landing page trend
-    chart. A yearly bucket is an aggregate, so the open month is left out of
-    the latest year (same as the API's /pl/yearly)."""
-    return get_measure(
-        "profit", group_by=[], date_range=exclude_partial_months(None), granularity="year",
-    )
+    """Full-history P&L by year, for the landing page trend chart. A yearly
+    bucket is an aggregate, so the open month is left out of the latest year
+    (same as the API's /pl/yearly). Columns: period, revenue, cost, profit (EBIT)
+    and the extra series (ebitda, depreciation, financial_result, tax, net_result)."""
+    pl = get_pl_monthly()
+    pl = pl[~pl["is_partial"]].copy()
+    pl["period"] = pd.to_datetime(pl["period"].dt.year.astype(str) + "-01-01")
+    cols = ["revenue", "cost", "profit", *_PL_EXTRA_SERIES]
+    return pl.groupby("period", as_index=False)[cols].sum()
 
 
 def get_monthly_trend_for_year(year: int | None) -> pd.DataFrame:
     """Month-by-month series. Deliberately keeps the open month (callers mark
     it with get_partial_months_in_range) — a monthly chart is not an aggregate."""
-    date_range = (dt.date(year, 1, 1), dt.date(year, 12, 31)) if year else None
-    return get_measure("profit", group_by=[], date_range=date_range, granularity="month")
+    pl = get_pl_monthly()
+    if year:
+        pl = pl[pl["period"].dt.year == year]
+    return pl[["period", "revenue", "cost", "profit", *_PL_EXTRA_SERIES]].reset_index(drop=True)
 
 
 def get_city_density(date_range: tuple | None = None) -> pd.DataFrame:
