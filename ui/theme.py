@@ -243,6 +243,29 @@ def inject_global_css(theme: str) -> str:
         color: {t['text_secondary']};
         font-weight: 600 !important;
     }}
+    .st-key-app_nav {{ padding: 14px 12px; }}
+    .st-key-app_nav div[data-testid="stButton"] > button {{
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+    }}
+    .st-key-app_nav div[data-testid="stButton"] > button,
+    .st-key-app_nav div[data-testid="stButton"] > button * {{
+        white-space: nowrap;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }}
+    /* Narrow windows: shrink the labels a step instead of cutting them off ("Time Anal..."). */
+    @media (max-width: 1100px) {{
+        .st-key-app_nav {{ padding: 12px 6px; }}
+        .st-key-app_nav div[data-testid="stButton"] > button {{
+            padding-left: 2px !important;
+            padding-right: 2px !important;
+        }}
+        .st-key-app_nav div[data-testid="stButton"] > button p {{ font-size: 12.5px !important; }}
+    }}
+    @media (max-width: 820px) {{
+        .st-key-app_nav div[data-testid="stButton"] > button p {{ font-size: 11px !important; }}
+    }}
     .st-key-app_nav div[data-testid="stButton"] > button[kind="primary"] {{
         background: {t['sage']} !important;
         color: {t['on_accent']} !important;

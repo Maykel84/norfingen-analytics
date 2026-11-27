@@ -146,10 +146,13 @@ def nav_bar(
                         new_theme = "dark"
 
     with st.container(key="app_nav"):
-        cols = st.columns(len(NAV_ITEMS))
+        # Column widths follow the label length in the active language, so the long names
+        # ("Analiza czasowa", "Profitability") get room instead of being cut to "Time Anal...".
+        labels = {key: t_func(f"nav_{key}", lang) for key in NAV_ITEMS}
+        cols = st.columns([max(len(labels[key]), 6) + 5 for key in NAV_ITEMS])
         for col, key in zip(cols, NAV_ITEMS):
             with col:
-                label = t_func(f"nav_{key}", lang)
+                label = labels[key]
                 btn_type = "primary" if key == active else "secondary"
                 if st.button(label, key=f"nav_{key}", use_container_width=True, type=btn_type):
                     new_active = key
